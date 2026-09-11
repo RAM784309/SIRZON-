@@ -893,8 +893,101 @@ button{ border:0; border-radius:10px; padding:13px 18px; cursor:pointer; }
   </div>
 </div>
 
-<script>
-/* ===================================================== DATABASE ===================================================== */
+<script type="module">
+  // Import Firebase SDKs and Firestore functions
+  import { initializeApp } from "firebase/app";
+  import { getAnalytics } from "firebase/analytics";
+  import { getFirestore, collection, addDoc } from "firebase/firestore";
+
+  // Your web app's Firebase configuration
+  const firebaseConfig = {
+    apiKey: "AIzaSyD9ChxuR4xmP_BpTr0QykUWmS1ET5Q7KQE",
+    authDomain: "sirzon-7623d.firebaseapp.com",
+    databaseURL: "https://sirzon-7623d-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "sirzon-7623d",
+    storageBucket: "sirzon-7623d.firebasestorage.app",
+    messagingSenderId: "864622428392",
+    appId: "1:864622428392:web:074240e85255e9e9b2895d",
+    measurementId: "G-LY6E43XEEJ"
+  };
+
+  // Initialize Firebase
+  const app = initializeApp(firebaseConfig);
+  const analytics = getAnalytics(app);
+  const db = getFirestore(app); // Firestore Database Instance
+
+  console.log("Firebase & Firestore successfully connected!");
+
+  /* ===================================================== LOCAL DATABASE ===================================================== */
+  var defaultDB = {
+    users:[],
+    branches:[],
+    members:[],
+    transactions:[],
+    loans:[],
+    loanRequests:[],
+    earningRequests:[]
+  };
+  
+  var localDB;
+  try{
+    localDB = JSON.parse( localStorage.getItem("sirzon_db") );
+  }catch(error){
+    localDB = null;
+  }
+  
+  if(!localDB || typeof localDB !== "object"){ localDB = defaultDB; }
+  if(!Array.isArray(localDB.users)){ localDB.users = []; }
+  if(!Array.isArray(localDB.branches)){ localDB.branches = []; }
+  if(!Array.isArray(localDB.members)){ localDB.members = []; }
+  if(!Array.isArray(localDB.transactions)){ localDB.transactions = []; }
+  if(!Array.isArray(localDB.loans)){ localDB.loans = []; }
+  if(!Array.isArray(localDB.loanRequests)){ localDB.loanRequests = []; }
+  if(!Array.isArray(localDB.earningRequests)){ localDB.earningRequests = []; }
+
+  function saveDB(){
+    localStorage.setItem( "sirzon_db", JSON.stringify(localDB) );
+  }
+
+  function fourDigit(num){
+    return ("0000" + num).slice(-4);
+  }
+
+  /* ===================================================== REAL-TIME CURRENT MONTH & YEAR ===================================================== */
+  window.updateRealTimeBadges = function() {
+    var now = new Date();
+    var options = { month: 'long', year: 'numeric' };
+    var currentMonthYear = now.toLocaleDateString('en-US', options); 
+    var badgeIds = [
+      "homeRealTimeBadge",
+      "distributeRealTimeBadge",
+      "branchRealTimeBadge",
+      "teamRealTimeBadge",
+      "loanRealTimeBadge",
+      `earningRealTimeBadge`,
+      "accountRealTimeBadge"
+    ];
+    badgeIds.forEach(function(id){
+      var el = document.getElementById(id);
+      if(el) { el.innerText = currentMonthYear; }
+    });
+  };
+
+  // Function to save transactions to Cloud Firestore
+  window.saveTransactionToCloud = async function(transactionData) {
+    try {
+      const docRef = await addDoc(collection(db, "transactions"), {
+        ...transactionData,
+        createdAt: new Date().toISOString()
+      });
+      console.log("Document written with ID: ", docRef.id);
+    } catch (e) {
+      console.error("Error adding document: ", e);
+    }
+  };
+
+
+/* ===================================================== LOCAL DATABASE ===================================================== */
 var defaultDB = {
   users:[],
   branches:[],
@@ -904,47 +997,27 @@ var defaultDB = {
   loanRequests:[],
   earningRequests:[]
 };
-var db;
+var localDB;
 try{
-  db = JSON.parse( localStorage.getItem("sirzon_db") );
+  localDB = JSON.parse( localStorage.getItem("sirzon_db") );
 }catch(error){
-  db = null;
+  localDB = null;
 }
-if(!db || typeof db !== "object"){ db = defaultDB; }
-if(!Array.isArray(db.users)){ db.users = []; }
-if(!Array.isArray(db.branches)){ db.branches = []; }
-if(!Array.isArray(db.members)){ db.members = []; }
-if(!Array.isArray(db.transactions)){ db.transactions = []; }
-if(!Array.isArray(db.loans)){ db.loans = []; }
-if(!Array.isArray(db.loanRequests)){ db.loanRequests = []; }
-if(!Array.isArray(db.earningRequests)){ db.earningRequests = []; }
+if(!localDB || typeof localDB !== "object"){ localDB = defaultDB; }
+if(!Array.isArray(localDB.users)){ localDB.users = []; }
+if(!Array.isArray(localDB.branches)){ localDB.branches = []; }
+if(!Array.isArray(localDB.members)){ localDB.members = []; }
+if(!Array.isArray(localDB.transactions)){ localDB.transactions = []; }
+if(!Array.isArray(localDB.loans)){ localDB.loans = []; }
+if(!Array.isArray(localDB.loanRequests)){ localDB.loanRequests = []; }
+if(!Array.isArray(localDB.earningRequests)){ localDB.earningRequests = []; }
 
 function saveDB(){
-  localStorage.setItem( "sirzon_db", JSON.stringify(db) );
+  localStorage.setItem( "sirzon_db", JSON.stringify(localDB) );
 }
 
 function fourDigit(num){
   return ("0000" + num).slice(-4);
-}
-
-/* ===================================================== REAL-TIME CURRENT MONTH & YEAR ===================================================== */
-function updateRealTimeBadges() {
-  var now = new Date();
-  var options = { month: 'long', year: 'numeric' };
-  var currentMonthYear = now.toLocaleDateString('en-US', options); 
-  var badgeIds = [
-    "homeRealTimeBadge",
-    "distributeRealTimeBadge",
-    "branchRealTimeBadge",
-    "teamRealTimeBadge",
-    "loanRealTimeBadge",
-    "earningRealTimeBadge",
-    "accountRealTimeBadge"
-  ];
-  badgeIds.forEach(function(id){
-    var el = document.getElementById(id);
-    if(el) { el.innerText = currentMonthYear; }
-  });
 }
 
 /* ===================================================== BACKUP ===================================================== */
