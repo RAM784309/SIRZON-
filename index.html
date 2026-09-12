@@ -1765,8 +1765,18 @@ filterDistributeMembers();
 <!-- Firebase SDK -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
-  import { getAuth } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
-  import { getFirestore } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+  import {
+  getAuth,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword
+} from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
+
+import {
+  getFirestore,
+  doc,
+  getDoc,
+  setDoc
+} from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyD9ChxuR4xmP_BpTr0QykUWmS1ET5Q7KQE",
@@ -1781,10 +1791,14 @@ filterDistributeMembers();
 
   const app = initializeApp(firebaseConfig);
 
-  const auth = getAuth(app);
-  const db = getFirestore(app);
+const auth = getAuth(app);
+const db = getFirestore(app);
 
-  console.log("SIRZON Firebase Connected");
+// Existing SIRZON JavaScript ke liye Firebase available karna
+window.sirzonAuth = auth;
+window.sirzonDB = db;
+
+console.log("SIRZON Firebase Connected");
 </script>
 
 </body>
