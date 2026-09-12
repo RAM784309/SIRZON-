@@ -1746,18 +1746,43 @@ refreshAll();
 /* ===================================================== INITIALIZATION ===================================================== */
 var currentUser = null;
 try{
-currentUser = JSON.parse(localStorage.getItem("sirzon_current_user"));
+  currentUser = JSON.parse(localStorage.getItem("sirzon_current_user"));
 }catch(error){
-currentUser = null;
+  currentUser = null;
 }
+
 if(currentUser){
-showApp(currentUser);
+  showApp(currentUser);
 } else {
-document.getElementById("loginPage").style.display = "flex";
+  document.getElementById("loginPage").style.display = "flex";
 }
+
 updateRealTimeBadges();
 populateDistributeDropdowns();
 filterDistributeMembers();
 </script>
+
+<!-- Firebase SDK -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
+  import { getAuth } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
+  import { getFirestore } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "YAHAN_APNI_ACTUAL_API_KEY_RAKHE",
+    authDomain: "sirzon-7623d.firebaseapp.com",
+    projectId: "sirzon-7623d",
+    storageBucket: "sirzon-7623d.firebasestorage.app",
+    messagingSenderId: "864622428392",
+    appId: "1:864622428392:web:074240e85255e9e9b2895d"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  console.log("SIRZON Firebase Connected");
+</script>
+
 </body>
 </html>
