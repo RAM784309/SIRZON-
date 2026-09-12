@@ -615,47 +615,60 @@ document.getElementById("regUser").value = "";
 document.getElementById("regPass").value = "";
 showLogin();
 }
-async function login(){
 
-  var username = document.getElementById("loginUser").value.trim();
-  var password = document.getElementById("loginPass").value;
-
-  if(!username || !password){
-    alert("Please enter code and password");
-    return;
-  }
-
-  var code = username.toUpperCase();
-
-  // Firebase Admin Login
-  if(code === "AD0001"){
-
-    var result = await window.firebaseAdminLogin(code, password);
-
-    if(!result.success){
-      alert(result.message || "Invalid code or password");
-      return;
+window.firebaseAdminLogin = async function(code, password) {
+  try {
+    if (code.trim().toUpperCase() !== "AD0001") {
+      return {
+        success: false,
+        message: "Invalid Admin Code"
+      };
     }
 
-    var user = {
-      id: "ADMIN",
-      name: "Sirzon",
-      username: "AD0001",
-      role: "AD",
-      code: "AD0001",
-      uid: result.uid
-    };
+    const email = "ad0001@sirzon.app";
+    let user;
 
-    localStorage.setItem(
-      "sirzon_current_user",
-      JSON.stringify(user)
+    try {
+      // Pehle login karne ki koshish karein
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      user = userCredential.user;
+    } catch (loginError) {
+      // Agar user nahi mila (user-not-found), toh naya account bana lein
+      if (loginError.code === 'auth/user-not-found' || loginError.code === 'auth/invalid-credential') {
+        const newUserCredential = await createUserWithEmailAndPassword(auth, email, password);
+        user = newUserCredential.user;
+      } else {
+        throw loginError; // Koi doosra error ho toh aage badhayein
+      }
+    }
+
+    // Firestore mein user document save karein
+    await setDoc(
+      doc(db, "users", "AD0001"),
+      {
+        code: "AD0001",
+        admin: "Sirzon",
+        role: "AD",
+        uid: user.uid
+      },
+      { merge: true }
     );
 
-    currentUser = user;
+    return {
+      success: true,
+      uid: user.uid
+    };
 
-    showApp(user);
-    return;
+  } catch (error) {
+    console.error("Login Error:", error.code, error.message);
+
+    return {
+      success: false,
+      message: error.message
+    };
   }
+};
+
 
   // Other users अभी पुराने system से
   var user = db.users.find(function(u){
