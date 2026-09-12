@@ -1769,15 +1769,18 @@ filterDistributeMembers();
   import { getFirestore } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 
   const firebaseConfig = {
-    apiKey: "YAHAN_APNI_ACTUAL_API_KEY_RAKHE",
+    apiKey: "AIzaSyD9ChxuR4xmP_BpTr0QykUWmS1ET5Q7KQE",
     authDomain: "sirzon-7623d.firebaseapp.com",
+    databaseURL: "https://sirzon-7623d-default-rtdb.asia-southeast1.firebasedatabase.app",
     projectId: "sirzon-7623d",
     storageBucket: "sirzon-7623d.firebasestorage.app",
     messagingSenderId: "864622428392",
-    appId: "1:864622428392:web:074240e85255e9e9b2895d"
+    appId: "1:864622428392:web:074240e85255e9e9b2895d",
+    measurementId: "G-LY6E43XEEJ"
   };
 
   const app = initializeApp(firebaseConfig);
+
   const auth = getAuth(app);
   const db = getFirestore(app);
 
