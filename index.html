@@ -615,34 +615,83 @@ document.getElementById("regUser").value = "";
 document.getElementById("regPass").value = "";
 showLogin();
 }
-function login(){
-var username = document.getElementById("loginUser").value.trim();
-var password = document.getElementById("loginPass").value;
-if(!username || !password){
-alert( "Please enter code and password" );
-return;
-}
-var user = db.users.find( function(u){
-return ( u.username === username && u.password === password );
-} );
-if( username === "admin" && password === "1234" ){
-user = { id:"ADMIN", name:"Administrator", username:"admin", password:"1234", role:"AD", joinDate:"01/01/2026", code:"AD0001" };
-}
-if(!user){
-alert( "Invalid code or password" );
-return;
-}
-if(user.role === "PENDING"){
-alert( "This account has no role yet.\nPlease contact Admin." );
-return;
-}
-if( user.role !== "AD" && user.role !== "BR" && user.role !== "MB" ){
-alert( "Invalid user role" );
-return;
-}
-localStorage.setItem( "sirzon_current_user", JSON.stringify(user) );
-currentUser = user;
-showApp(user);
+async function login(){
+
+  var username = document.getElementById("loginUser").value.trim();
+  var password = document.getElementById("loginPass").value;
+
+  if(!username || !password){
+    alert("Please enter code and password");
+    return;
+  }
+
+  var code = username.toUpperCase();
+
+  // Firebase Admin Login
+  if(code === "AD0001"){
+
+    var result = await window.firebaseAdminLogin(code, password);
+
+    if(!result.success){
+      alert(result.message || "Invalid code or password");
+      return;
+    }
+
+    var user = {
+      id: "ADMIN",
+      name: "Sirzon",
+      username: "AD0001",
+      role: "AD",
+      code: "AD0001",
+      uid: result.uid
+    };
+
+    localStorage.setItem(
+      "sirzon_current_user",
+      JSON.stringify(user)
+    );
+
+    currentUser = user;
+
+    showApp(user);
+    return;
+  }
+
+  // Other users अभी पुराने system से
+  var user = db.users.find(function(u){
+    return (
+      (u.username === username || u.code === code) &&
+      u.password === password
+    );
+  });
+
+  if(!user){
+    alert("Invalid code or password");
+    return;
+  }
+
+  if(user.role === "PENDING"){
+    alert("This account has no role yet.\nPlease contact Admin.");
+    return;
+  }
+
+  if(
+    user.role !== "AD" &&
+    user.role !== "BR" &&
+    user.role !== "MB"
+  ){
+    alert("Invalid user role");
+    return;
+  }
+
+  localStorage.setItem(
+    "sirzon_current_user",
+    JSON.stringify(user)
+  );
+
+  currentUser = user;
+
+  showApp(user);
 }
 function showApp(user){
 document.getElementById("loginPage").style.display = "none";
