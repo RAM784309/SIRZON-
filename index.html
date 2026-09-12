@@ -1826,91 +1826,338 @@ filterDistributeMembers();
 
 <!-- Firebase SDK -->
 <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
-  import {
+
+import { initializeApp } 
+from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
+
+import {
   getAuth,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword
-} from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
+} 
+from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
 
 import {
   getFirestore,
   doc,
   getDoc,
   setDoc
-} from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+} 
+from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 
-  const firebaseConfig = {
-    apiKey: "AIzaSyD9ChxuR4xmP_BpTr0QykUWmS1ET5Q7KQE",
-    authDomain: "sirzon-7623d.firebaseapp.com",
-    databaseURL: "https://sirzon-7623d-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "sirzon-7623d",
-    storageBucket: "sirzon-7623d.firebasestorage.app",
-    messagingSenderId: "864622428392",
-    appId: "1:864622428392:web:074240e85255e9e9b2895d",
-    measurementId: "G-LY6E43XEEJ"
-  };
 
-  const app = initializeApp(firebaseConfig);
+/* =========================
+   FIREBASE CONFIG
+========================= */
+
+const firebaseConfig = {
+
+  apiKey: "AIzaSyD9ChxuR4xmP_BpTr0QykUWmS1ET5Q7KQE",
+
+  authDomain: "sirzon-7623d.firebaseapp.com",
+
+  databaseURL:
+    "https://sirzon-7623d-default-rtdb.asia-southeast1.firebasedatabase.app",
+
+  projectId: "sirzon-7623d",
+
+  storageBucket: "sirzon-7623d.firebasestorage.app",
+
+  messagingSenderId: "864622428392",
+
+  appId: "1:864622428392:web:074240e85255e9e9b2895d",
+
+  measurementId: "G-LY6E43XEEJ"
+};
+
+
+/* =========================
+   INITIALIZE FIREBASE
+========================= */
+
+const app = initializeApp(firebaseConfig);
 
 const auth = getAuth(app);
+
 const db = getFirestore(app);
-window.firebaseAdminLogin = async function(code, password) {
+
+
+/* =========================
+   ADMIN FIRST SETUP
+========================= */
+
+window.firebaseCreateAdmin = async function(
+  adminName,
+  password
+) {
+
   try {
-    if (code.trim().toUpperCase() !== "AD0001") {
-      return {
-        success: false,
-        message: "Invalid Admin Code"
-      };
-    }
+
+    adminName = adminName.trim();
 
     const email = "ad0001@sirzon.app";
 
-    await signInWithEmailAndPassword(
-      auth,
-      email,
-      password
-    );
+    if (!adminName) {
 
-    const user = auth.currentUser;
+      return {
+        success: false,
+        message: "Admin name required"
+      };
 
-    const userDoc = await getDoc(
-      doc(getFirestore(app), "users", "AD0001")
-    );
+    }
 
-    if (!userDoc.exists()) {
-      await setDoc(
-        doc(getFirestore(app), "users", "AD0001"),
-        {
-          code: "AD0001",
-          admin: "Sirzon",
-          role: "AD",
-          uid: user.uid
-        },
-        { merge: true }
+    if (!password || password.length < 6) {
+
+      return {
+        success: false,
+        message: "Password minimum 6 characters hona chahiye"
+      };
+
+    }
+
+
+    /* Create Firebase Authentication account */
+
+    const result =
+      await createUserWithEmailAndPassword(
+        auth,
+        email,
+        password
       );
+
+    const user = result.user;
+
+
+    /* Save Admin in Firestore */
+
+    await setDoc(
+      doc(db, "users", "AD0001"),
+      {
+
+        code: "AD0001",
+
+        admin: adminName,
+
+        role: "AD",
+
+        uid: user.uid,
+
+        email: email,
+
+        createdAt: new Date().toISOString()
+
+      },
+      {
+        merge: true
+      }
+    );
+
+
+    return {
+
+      success: true,
+
+      uid: user.uid,
+
+      message: "Admin account created successfully"
+
+    };
+
+
+  } catch (error) {
+
+    console.error("Admin Create Error:", error);
+
+    let message = "Admin account create nahi hua";
+
+    if (error.code === "auth/email-already-in-use") {
+
+      message =
+        "AD0001 Admin account already exist karta hai";
+
+    }
+
+    if (error.code === "auth/weak-password") {
+
+      message =
+        "Password bahut weak hai";
+
     }
 
     return {
-      success: true,
-      uid: user.uid
-    };
 
-  } catch (error) {
-    console.error(error);
-
-    return {
       success: false,
-      message: "Invalid code or password"
+
+      message: message
+
     };
+
   }
+
 };
 
-// Existing SIRZON JavaScript ke liye Firebase available karna
+
+/* =========================
+   ADMIN LOGIN
+========================= */
+
+window.firebaseAdminLogin = async function(
+  code,
+  password
+) {
+
+  try {
+
+    code = code.trim().toUpperCase();
+
+    if (code !== "AD0001") {
+
+      return {
+
+        success: false,
+
+        message: "Invalid Admin Code"
+
+      };
+
+    }
+
+
+    if (!password) {
+
+      return {
+
+        success: false,
+
+        message: "Password enter karo"
+
+      };
+
+    }
+
+
+    const email = "ad0001@sirzon.app";
+
+
+    /* Firebase Authentication Login */
+
+    const result =
+      await signInWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
+
+
+    const user = result.user;
+
+
+    /* Get Admin Firestore data */
+
+    const userRef =
+      doc(db, "users", "AD0001");
+
+    const userDoc =
+      await getDoc(userRef);
+
+
+    /* If Firestore document missing,
+       recreate it */
+
+    if (!userDoc.exists()) {
+
+      await setDoc(
+        userRef,
+        {
+
+          code: "AD0001",
+
+          admin: "Sirzon",
+
+          role: "AD",
+
+          uid: user.uid,
+
+          email: email
+
+        },
+        {
+          merge: true
+        }
+      );
+
+    }
+
+
+    return {
+
+      success: true,
+
+      uid: user.uid,
+
+      code: "AD0001",
+
+      role: "AD"
+
+    };
+
+
+  } catch (error) {
+
+    console.error("Admin Login Error:", error);
+
+
+    let message =
+      "Invalid code or password";
+
+
+    if (error.code === "auth/user-not-found") {
+
+      message =
+        "Admin account abhi Firebase me create nahi hua";
+
+    }
+
+    if (error.code === "auth/wrong-password" ||
+        error.code === "auth/invalid-credential") {
+
+      message =
+        "Admin password galat hai";
+
+    }
+
+    if (error.code === "auth/too-many-requests") {
+
+      message =
+        "Bahut baar login try hua hai. Thodi der baad try karo";
+
+    }
+
+
+    return {
+
+      success: false,
+
+      message: message
+
+    };
+
+  }
+
+};
+
+
+/* =========================
+   GLOBAL FIREBASE ACCESS
+========================= */
+
 window.sirzonAuth = auth;
+
 window.sirzonDB = db;
 
+
 console.log("SIRZON Firebase Connected");
+
 </script>
 
 </body>
