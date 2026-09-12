@@ -616,70 +616,52 @@ document.getElementById("regPass").value = "";
 showLogin();
 }
 
-window.firebaseAdminLogin = async function(code, password) {
-  try {
-    if (code.trim().toUpperCase() !== "AD0001") {
-      return {
-        success: false,
-        message: "Invalid Admin Code"
-      };
-    }
+/* ===================================================== LOGIN FUNCTION ===================================================== */
+async function login(){
+  var loginInput = document.getElementById("loginUser").value.trim();
+  var password = document.getElementById("loginPass").value;
 
-    const email = "ad0001@sirzon.app";
-    let user;
+  if(!loginInput || !password){
+    alert("Please enter mobile/username/code and password");
+    return;
+  }
 
-    try {
-      // Pehle login karne ki koshish karein
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      user = userCredential.user;
-    } catch (loginError) {
-      // Agar user nahi mila (user-not-found), toh naya account bana lein
-      if (loginError.code === 'auth/user-not-found' || loginError.code === 'auth/invalid-credential') {
-        const newUserCredential = await createUserWithEmailAndPassword(auth, email, password);
-        user = newUserCredential.user;
+  // Check if trying to login as Admin (AD0001) using Firebase
+  var upperCode = loginInput.toUpperCase();
+  if(upperCode === "AD0001" || upperCode === "SIRZON"){
+    if(typeof window.firebaseAdminLogin === "function"){
+      var res = await window.firebaseAdminLogin("AD0001", password);
+      if(res.success){
+        var adminUser = {
+          id: "ad_0001",
+          name: "Sirzon",
+          username: "AD0001",
+          code: "AD0001",
+          role: "AD",
+          password: password,
+          joinDate: "06/09/2026"
+        };
+        currentUser = adminUser;
+        localStorage.setItem("sirzon_current_user", JSON.stringify(adminUser));
+        showApp(adminUser);
+        return;
       } else {
-        throw loginError; // Koi doosra error ho toh aage badhayein
+        alert(res.message || "Admin login failed");
+        return;
       }
     }
-
-    // Firestore mein user document save karein
-    await setDoc(
-      doc(db, "users", "AD0001"),
-      {
-        code: "AD0001",
-        admin: "Sirzon",
-        role: "AD",
-        uid: user.uid
-      },
-      { merge: true }
-    );
-
-    return {
-      success: true,
-      uid: user.uid
-    };
-
-  } catch (error) {
-    console.error("Login Error:", error.code, error.message);
-
-    return {
-      success: false,
-      message: error.message
-    };
   }
-};
 
-
-  // Other users अभी पुराने system से
+  // Regular local login for Members and Managers (BR / MB)
   var user = db.users.find(function(u){
     return (
-      (u.username === username || u.code === code) &&
+      (u.username === loginInput || u.code === loginInput || u.mobile === loginInput) &&
       u.password === password
     );
   });
 
   if(!user){
-    alert("Invalid code or password");
+    alert("Invalid username, mobile, code or password");
     return;
   }
 
@@ -697,15 +679,11 @@ window.firebaseAdminLogin = async function(code, password) {
     return;
   }
 
-  localStorage.setItem(
-    "sirzon_current_user",
-    JSON.stringify(user)
-  );
-
   currentUser = user;
-
+  localStorage.setItem("sirzon_current_user", JSON.stringify(user));
   showApp(user);
 }
+
 function showApp(user){
 document.getElementById("loginPage").style.display = "none";
 document.getElementById("app").style.display = "block";
