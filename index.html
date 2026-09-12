@@ -1793,6 +1793,56 @@ import {
 
 const auth = getAuth(app);
 const db = getFirestore(app);
+window.firebaseAdminLogin = async function(code, password) {
+  try {
+    if (code.trim().toUpperCase() !== "AD0001") {
+      return {
+        success: false,
+        message: "Invalid Admin Code"
+      };
+    }
+
+    const email = "ad0001@sirzon.app";
+
+    await signInWithEmailAndPassword(
+      auth,
+      email,
+      password
+    );
+
+    const user = auth.currentUser;
+
+    const userDoc = await getDoc(
+      doc(getFirestore(app), "users", "AD0001")
+    );
+
+    if (!userDoc.exists()) {
+      await setDoc(
+        doc(getFirestore(app), "users", "AD0001"),
+        {
+          code: "AD0001",
+          admin: "Sirzon",
+          role: "AD",
+          uid: user.uid
+        },
+        { merge: true }
+      );
+    }
+
+    return {
+      success: true,
+      uid: user.uid
+    };
+
+  } catch (error) {
+    console.error(error);
+
+    return {
+      success: false,
+      message: "Invalid code or password"
+    };
+  }
+};
 
 // Existing SIRZON JavaScript ke liye Firebase available karna
 window.sirzonAuth = auth;
