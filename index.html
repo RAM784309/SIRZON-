@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SIRZON Finance Management System</title>
@@ -13,7 +12,17 @@ body{ background:#eef7f0; color:#222; }
 .login-page{ min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px; background:linear-gradient(135deg,#198754,#0f5132); }
 .login-box{ width:100%; max-width:400px; background:white; padding:30px; border-radius:20px; box-shadow:0 10px 30px rgba(0,0,0,.2); }
 .logo{ text-align:center; font-size:34px; font-weight:bold; color:#198754; margin-bottom:5px; }
-.subtitle{ text-align:center; color:#777; margin-bottom:25px; }
+.subtitle{ text-function setupDistributePageUI(){ 
+    var container = document.getElementById("adminBranchSelectContainer"); 
+    if(!container) return; 
+    if(currentUser && currentUser.role === "AD"){ 
+        container.style.display = "block"; 
+        populateDistributeBranchDropdown(); 
+    } else { 
+        container.style.display = "none"; 
+    } 
+} 
+:center; color:#777; margin-bottom:25px; }
 input,select{ width:100%; padding:13px; border:1px solid #ddd; border-radius:10px; margin:7px 0 12px; outline:none; }
 button{ border:0; border-radius:10px; padding:13px 18px; cursor:pointer; }
 .login-btn{ width:100%; background:#198754; color:white; font-size:16px; font-weight:bold; }
@@ -433,8 +442,8 @@ button{ border:0; border-radius:10px; padding:13px 18px; cursor:pointer; }
 <h3 id="accountName" style="font-size:20px; color:#198754;"> User </h3>
 <p style="margin-top:8px"> Username: <span id="accountUser"></span> </p>
 <p style="margin-top:8px"> Role: <b id="accountRole"></b> </p>
-<p style="margin-top:8px"> Total Branches: <b id="accountBranches">0</b> </p>
-<p style="margin-top:8px"> Total Members: <b id="accountMembers">0</b> </p>
+<p style="margin-top:8px" id="accountBranchesRow"> Total Branches: <b id="accountBranches">0</b> </p>
+<p style="margin-top:8px" id="accountMembersRow"> Total Members: <b id="accountMembers">0</b> </p>
 </div>
 <!-- BACKUP -->
 <div class="card" style="margin-top:15px;">
@@ -495,82 +504,7 @@ button{ border:0; border-radius:10px; padding:13px 18px; cursor:pointer; }
 </div>
 </div>
 </div>
-
 <script>
-
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
-const firebaseConfig = {
-  apiKey: "AIzaSyD9ChxuR4xmP_BpTr0QykUWmS1ET5Q7KQE",
-  authDomain: "sirzon-7623d.firebaseapp.com",
-  databaseURL: "https://sirzon-7623d-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "sirzon-7623d",
-  storageBucket: "sirzon-7623d.firebasestorage.app",
-  messagingSenderId: "864622428392",
-  appId: "1:864622428392:web:074240e85255e9e9b2895d",
-  measurementId: "G-LY6E43XEEJ"
-};
-// Initialize Firebase
-if (!firebase.apps.length) {
-    firebase.initializeApp(firebaseConfig);
-}
-var dbFirestore = firebase.firestore();
-
-var defaultDB = { users:[], branches:[], members:[], transactions:[], loans:[] };
-var db = defaultDB;
-
-// Firestore se data load karne ka function
-function loadDBFromFirestore(callback) {
-    dbFirestore.collection("settings").doc("sirzon").get().then(function(doc) {
-        if (doc.exists && doc.data().payload) {
-            db = doc.data().payload;
-        } else {
-            db = defaultDB;
-            saveDBToFirestore(); // Initial empty/default save
-        }
-        if(callback) callback();
-    }).catch(function(error) {
-        console.error("Error loading database from Firestore: ", error);
-    });
-}
-
-// Firestore me data save karne ka function
-function saveDB() {
-    // Local cache ke liye optional localStorage
-    localStorage.setItem("sirzon_db", JSON.stringify(db));
-    
-    // Central Firestore Database me sync karna
-    dbFirestore.collection("settings").doc("sirzon").set({
-        payload: db,
-        lastUpdated: new Date().toISOString()
-    }).then(function() {
-        console.log("Data successfully synced with Firebase Firestore!");
-    }).catch(function(error) {
-        console.error("Error writing document: ", error);
-    });
-}
-// App initialization modification
-document.addEventListener("DOMContentLoaded", function() {
-    loadDBFromFirestore(function() {
-        updateRealTimeBadges();
-        populateDistributeDropdowns();
-        filterDistributeMembers();
-        
-        var currentUser = null;
-        try{ 
-            currentUser = JSON.parse(localStorage.getItem("sirzon_current_user")); 
-        }catch(error){ 
-            currentUser = null; 
-        }
-        
-        if(currentUser){ 
-            showApp(currentUser); 
-        } else { 
-            var loginPage = document.getElementById("loginPage");
-            if(loginPage) loginPage.style.display = "flex"; 
-        }
-    });
-});
-
 /* ===================================================== DATABASE ===================================================== */
 var defaultDB = { users:[], branches:[], members:[], transactions:[], loans:[] };
 var db;
@@ -678,96 +612,34 @@ document.getElementById("regUser").value = "";
 document.getElementById("regPass").value = "";
 showLogin();
 }
-
-window.firebaseAdminLogin = async function(code, password) {
-  try {
-    if (code.trim().toUpperCase() !== "AD0001") {
-      return {
-        success: false,
-        message: "Invalid Admin Code"
-      };
-    }
-
-    const email = "ad0001@sirzon.app";
-    let user;
-
-    try {
-      // Pehle login karne ki koshish karein
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      user = userCredential.user;
-    } catch (loginError) {
-      // Agar user nahi mila (user-not-found), toh naya account bana lein
-      if (loginError.code === 'auth/user-not-found' || loginError.code === 'auth/invalid-credential') {
-        const newUserCredential = await createUserWithEmailAndPassword(auth, email, password);
-        user = newUserCredential.user;
-      } else {
-        throw loginError; // Koi doosra error ho toh aage badhayein
-      }
-    }
-
-    // Firestore mein user document save karein
-    await setDoc(
-      doc(db, "users", "AD0001"),
-      {
-        code: "AD0001",
-        admin: "Sirzon",
-        role: "AD",
-        uid: user.uid
-      },
-      { merge: true }
-    );
-
-    return {
-      success: true,
-      uid: user.uid
-    };
-
-  } catch (error) {
-    console.error("Login Error:", error.code, error.message);
-
-    return {
-      success: false,
-      message: error.message
-    };
-  }
-};
-
-
-  // Other users अभी पुराने system से
-  var user = db.users.find(function(u){
-    return (
-      (u.username === username || u.code === code) &&
-      u.password === password
-    );
-  });
-
-  if(!user){
-    alert("Invalid code or password");
-    return;
-  }
-
-  if(user.role === "PENDING"){
-    alert("This account has no role yet.\nPlease contact Admin.");
-    return;
-  }
-
-  if(
-    user.role !== "AD" &&
-    user.role !== "BR" &&
-    user.role !== "MB"
-  ){
-    alert("Invalid user role");
-    return;
-  }
-
-  localStorage.setItem(
-    "sirzon_current_user",
-    JSON.stringify(user)
-  );
-
-  currentUser = user;
-
-  showApp(user);
+function login(){
+var username = document.getElementById("loginUser").value.trim();
+var password = document.getElementById("loginPass").value;
+if(!username || !password){
+alert( "Please enter code and password" );
+return;
+}
+var user = db.users.find( function(u){
+return ( u.username === username && u.password === password );
+} );
+if( username === "admin" && password === "1234" ){
+user = { id:"ADMIN", name:"Administrator", username:"admin", password:"1234", role:"AD", joinDate:"01/01/2026", code:"AD0001" };
+}
+if(!user){
+alert( "Invalid code or password" );
+return;
+}
+if(user.role === "PENDING"){
+alert( "This account has no role yet.\nPlease contact Admin." );
+return;
+}
+if( user.role !== "AD" && user.role !== "BR" && user.role !== "MB" ){
+alert( "Invalid user role" );
+return;
+}
+localStorage.setItem( "sirzon_current_user", JSON.stringify(user) );
+currentUser = user;
+showApp(user);
 }
 function showApp(user){
 document.getElementById("loginPage").style.display = "none";
@@ -786,9 +658,14 @@ var teamBtn = bottomNav.children[1];
 var distributeBtn = bottomNav.children[3];
 var adminManagerHome = document.getElementById("adminManagerHomeContainer");
 var memberHome = document.getElementById("memberHomeContainer");
+var branchRow = document.getElementById("accountBranchesRow");
+var membersRow = document.getElementById("accountMembersRow");
+
 if(user.role === "MB"){
 if(adminManagerHome) adminManagerHome.style.display = "none";
 if(memberHome) memberHome.style.display = "block";
+if(branchRow) branchRow.style.display = "none";
+if(membersRow) membersRow.style.display = "none"; // Member app ke account section se member line hide
 teamBtn.style.display = "flex";
 teamBtn.innerHTML = '<span class="icon">💳</span>Loan';
 teamBtn.setAttribute("onclick", "openPage('loanPageMember', this)");
@@ -799,13 +676,19 @@ distributeBtn.style.display = "none";
 } else {
 if(adminManagerHome) adminManagerHome.style.display = "block";
 if(memberHome) memberHome.style.display = "none";
-teamBtn.style.display = "flex";
-teamBtn.innerHTML = '<span class="icon">👥</span>Team';
-teamBtn.setAttribute("onclick", "openPage('teamPage', this)");
+if(membersRow) membersRow.style.display = "block"; // Manager aur Admin ke liye visible rahega
+
+distributeBtn.style.display = "flex";
+
+if(user.role === "BR"){
+branchBtn.style.display = "none";
+if(branchRow) branchRow.style.display = "none";
+} else {
 branchBtn.style.display = "flex";
 branchBtn.innerHTML = '<span class="icon">🏢</span>Branch';
 branchBtn.setAttribute("onclick", "openPage('branchPage', this)");
-distributeBtn.style.display = "flex";
+if(branchRow) branchRow.style.display = "block";
+}
 }
 }
 /* ===================================================== SIDEBAR MENU ===================================================== */
@@ -1402,13 +1285,21 @@ return (t.type === "EMI Collect" && t.loanId === l.id);
 var remainingPrincipal = Number(l.amount || 0) - paidPrincipal;
 return sum + Math.max(remainingPrincipal, 0);
 }, 0);
+
+// Manager ke liye sirf self branch ke members count honge, Admin ke liye sabhi
+var membersCount = db.members.length;
+if(currentUser && currentUser.role === "BR"){
+membersCount = db.members.filter(function(m){ return m.branch === currentUser.branch; }).length;
+}
+
 if(document.getElementById("totalBalance")) document.getElementById("totalBalance").innerText = "₹" + totalBalance.toLocaleString("en-IN");
 if(document.getElementById("totalSavings")) document.getElementById("totalSavings").innerText = "₹" + savingsAmount.toLocaleString("en-IN");
 if(document.getElementById("availableSavings")) document.getElementById("availableSavings").innerText = "₹" + availableSavings.toLocaleString("en-IN");
 if(document.getElementById("totalRemainingBalance")) document.getElementById("totalRemainingBalance").innerText = "₹" + earningsBalance.toLocaleString("en-IN");
 if(document.getElementById("totalLoan")) document.getElementById("totalLoan").innerText = "₹" + activeLoanBalance.toLocaleString("en-IN");
 if(document.getElementById("accountBranches")) document.getElementById("accountBranches").innerText = db.branches.length;
-if(document.getElementById("accountMembers")) document.getElementById("accountMembers").innerText = db.members.length;
+if(document.getElementById("accountMembers")) document.getElementById("accountMembers").innerText = membersCount;
+
 renderTransactions();
 renderBranches();
 renderMembers();
@@ -1674,51 +1565,60 @@ var totalDistributed = db.transactions.filter(function(t){ return t.type === "Di
 var balance = interest + otherIn - otherOut - totalDistributed;
 return Math.max(0, balance);
 }
-function setupDistributePageUI(){
-var container = document.getElementById("adminBranchSelectContainer");
-if(!container) return;
-if(currentUser && currentUser.role === "AD"){
-container.style.display = "block";
-populateDistributeBranchDropdown();
-} else {
-container.style.display = "none";
-}
-}
-function populateDistributeBranchDropdown(){
-var select = document.getElementById("distributeBranchSelect");
-if(!select) return;
-select.innerHTML = '<option value="">Select Branch</option>';
-db.branches.forEach(function(b){
-select.innerHTML += '<option value="' + b.name + '">' + b.name + " (" + b.code + ")" + '</option>';
-});
-}
-function onDistributeBranchChange(){
-populateDistributeDropdowns();
-calculateSelectedMemberDistribution();
-}
-function populateDistributeDropdowns(){
-var memberSelect = document.getElementById("distributeMember");
-if(!memberSelect){ return; }
-memberSelect.innerHTML = '<option value="">Select Member</option>';
-var selectedBranch = "";
-if(currentUser && currentUser.role === "BR"){
-selectedBranch = currentUser.branch;
-} else if(currentUser && currentUser.role === "AD"){
-var branchSel = document.getElementById("distributeBranchSelect");
-selectedBranch = branchSel ? branchSel.value : "";
-}
-var membersToUse = db.members;
-if(selectedBranch){
-membersToUse = db.members.filter(function(m){ return m.branch === selectedBranch; });
-} else if(currentUser && currentUser.role === "AD"){
-membersToUse = [];
-}
-membersToUse.forEach(function(m){
-memberSelect.innerHTML += '<option value="' + m.name + '">' + m.name + " - " + m.memberId + "</option>";
-});
-}
-function filterDistributeMembers(){
-populateDistributeDropdowns();
+function setupDistributePageUI(){ 
+    var container = document.getElementById("adminBranchSelectContainer"); 
+    if(!container) return; 
+    if(currentUser && currentUser.role === "AD"){ 
+        container.style.display = "block"; 
+        populateDistributeBranchDropdown(); 
+    } else { 
+        container.style.display = "none"; 
+    } 
+} 
+
+function populateDistributeBranchDropdown(){ 
+    var select = document.getElementById("distributeBranchSelect"); 
+    if(!select) return; 
+    select.innerHTML = '<option value="">Select Branch</option>'; 
+    db.branches.forEach(function(b){ 
+        select.innerHTML += '<option value="' + b.name + '">' + b.name + " (" + b.code + ")" + '</option>'; 
+    }); 
+} 
+
+function onDistributeBranchChange(){ 
+    populateDistributeDropdowns(); 
+    calculateSelectedMemberDistribution(); 
+} 
+
+function populateDistributeDropdowns(){ 
+    var memberSelect = document.getElementById("distributeMember"); 
+    if(!memberSelect){ return; } 
+    memberSelect.innerHTML = '<option value="">Select Member</option>'; 
+    
+    var selectedBranch = ""; 
+    if(currentUser && currentUser.role === "BR"){ 
+        selectedBranch = currentUser.branch; 
+    } else if(currentUser && currentUser.role === "AD"){ 
+        var branchSel = document.getElementById("distributeBranchSelect"); 
+        selectedBranch = branchSel ? branchSel.value : ""; 
+    } 
+
+    var membersToUse = db.members; 
+    if(selectedBranch){ 
+        membersToUse = db.members.filter(function(m){ 
+            return m.branch === selectedBranch; 
+        }); 
+    } else if(currentUser && currentUser.role === "AD"){ 
+        membersToUse = []; 
+    } 
+
+    membersToUse.forEach(function(m){ 
+        memberSelect.innerHTML += '<option value="' + m.name + '">' + m.name + " - " + m.memberId + "</option>"; 
+    }); 
+} 
+
+function filterDistributeMembers(){ 
+    populateDistributeDropdowns(); 
 }
 function updateDistributionAvailableBalance(){
 var box = document.getElementById("distributionAvailableBalance");
@@ -1840,388 +1740,60 @@ box.appendChild(itemEl);
 });
 }
 function addDistribute(){
-var member = document.getElementById("distributeMember").value;
-var amount = Number(document.getElementById("distributeAmount").value);
-var desc = document.getElementById("distributeDescription").value;
-var now = new Date();
-var currentYear = now.getFullYear().toString();
-if(!member || !amount || amount <= 0){
-alert("Kripya valid member aur amount select karein!");
-return;
-}
-var memberObj = db.members.find(function(m){ return m.name === member; });
-if(!memberObj) return;
-db.transactions.push({
-type: "Distribute",
-branch: memberObj.branch,
-member: member,
-amount: amount,
-year: currentYear,
-description: desc || ("Yearly Profit Distribution - " + currentYear),
-date: new Date().toLocaleString()
-});
-saveDB();
-alert("Distribution successfully saved!");
-document.getElementById("distributeAmount").value = "";
-document.getElementById("distributeDescription").value = "";
-document.getElementById("distributionShareInfo").style.display = "none";
-document.getElementById("distributeMember").value = "";
-refreshAll();
+    var member = document.getElementById("distributeMember").value;
+    var amount = Number(document.getElementById("distributeAmount").value);
+    var desc = document.getElementById("distributeDescription").value;
+    var now = new Date();
+    var currentYear = now.getFullYear().toString();
+
+    if(!member || !amount || amount <= 0){
+        alert("Kripya valid member aur amount select karein!");
+        return;
+    }
+
+    // Available earnings balance check
+    var availableEarnings = getDistributionAvailableBalance();
+    if(amount > availableEarnings){
+        alert("Error: Distribution amount available earnings balance (₹" + availableEarnings.toLocaleString("en-IN") + ") se zyada nahi ho sakta!");
+        return;
+    }
+
+    var memberObj = db.members.find(function(m){ return m.name === member; });
+    if(!memberObj) return;
+
+    db.transactions.push({
+        type: "Distribute",
+        branch: memberObj.branch,
+        member: member,
+        amount: amount,
+        year: currentYear,
+        description: desc || ("Yearly Profit Distribution - " + currentYear),
+        date: new Date().toLocaleString()
+    });
+
+    saveDB();
+    alert("Distribution successfully saved!");
+    document.getElementById("distributeAmount").value = "";
+    document.getElementById("distributeDescription").value = "";
+    document.getElementById("distributionShareInfo").style.display = "none";
+    document.getElementById("distributeMember").value = "";
+    refreshAll();
 }
 /* ===================================================== INITIALIZATION ===================================================== */
 var currentUser = null;
 try{
-  currentUser = JSON.parse(localStorage.getItem("sirzon_current_user"));
+currentUser = JSON.parse(localStorage.getItem("sirzon_current_user"));
 }catch(error){
-  currentUser = null;
+currentUser = null;
 }
-
 if(currentUser){
-  showApp(currentUser);
+showApp(currentUser);
 } else {
-  document.getElementById("loginPage").style.display = "flex";
+document.getElementById("loginPage").style.display = "flex";
 }
-
 updateRealTimeBadges();
 populateDistributeDropdowns();
 filterDistributeMembers();
 </script>
-
-<!-- Firebase SDK -->
-<script type="module">
-
-import { initializeApp } 
-from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
-
-import {
-  getAuth,
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword
-} 
-from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
-
-import {
-  getFirestore,
-  doc,
-  getDoc,
-  setDoc
-} 
-from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
-
-
-/* =========================
-   FIREBASE CONFIG
-========================= */
-
-const firebaseConfig = {
-
-  apiKey: "AIzaSyD9ChxuR4xmP_BpTr0QykUWmS1ET5Q7KQE",
-
-  authDomain: "sirzon-7623d.firebaseapp.com",
-
-  databaseURL:
-    "https://sirzon-7623d-default-rtdb.asia-southeast1.firebasedatabase.app",
-
-  projectId: "sirzon-7623d",
-
-  storageBucket: "sirzon-7623d.firebasestorage.app",
-
-  messagingSenderId: "864622428392",
-
-  appId: "1:864622428392:web:074240e85255e9e9b2895d",
-
-  measurementId: "G-LY6E43XEEJ"
-};
-
-
-/* =========================
-   INITIALIZE FIREBASE
-========================= */
-
-const app = initializeApp(firebaseConfig);
-
-const auth = getAuth(app);
-
-const db = getFirestore(app);
-
-
-/* =========================
-   ADMIN FIRST SETUP
-========================= */
-
-window.firebaseCreateAdmin = async function(
-  adminName,
-  password
-) {
-
-  try {
-
-    adminName = adminName.trim();
-
-    const email = "ad0001@sirzon.app";
-
-    if (!adminName) {
-
-      return {
-        success: false,
-        message: "Admin name required"
-      };
-
-    }
-
-    if (!password || password.length < 6) {
-
-      return {
-        success: false,
-        message: "Password minimum 6 characters hona chahiye"
-      };
-
-    }
-
-
-    /* Create Firebase Authentication account */
-
-    const result =
-      await createUserWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
-
-    const user = result.user;
-
-
-    /* Save Admin in Firestore */
-
-    await setDoc(
-      doc(db, "users", "AD0001"),
-      {
-
-        code: "AD0001",
-
-        admin: adminName,
-
-        role: "AD",
-
-        uid: user.uid,
-
-        email: email,
-
-        createdAt: new Date().toISOString()
-
-      },
-      {
-        merge: true
-      }
-    );
-
-
-    return {
-
-      success: true,
-
-      uid: user.uid,
-
-      message: "Admin account created successfully"
-
-    };
-
-
-  } catch (error) {
-
-    console.error("Admin Create Error:", error);
-
-    let message = "Admin account create nahi hua";
-
-    if (error.code === "auth/email-already-in-use") {
-
-      message =
-        "AD0001 Admin account already exist karta hai";
-
-    }
-
-    if (error.code === "auth/weak-password") {
-
-      message =
-        "Password bahut weak hai";
-
-    }
-
-    return {
-
-      success: false,
-
-      message: message
-
-    };
-
-  }
-
-};
-
-
-/* =========================
-   ADMIN LOGIN
-========================= */
-
-window.firebaseAdminLogin = async function(
-  code,
-  password
-) {
-
-  try {
-
-    code = code.trim().toUpperCase();
-
-    if (code !== "AD0001") {
-
-      return {
-
-        success: false,
-
-        message: "Invalid Admin Code"
-
-      };
-
-    }
-
-
-    if (!password) {
-
-      return {
-
-        success: false,
-
-        message: "Password enter karo"
-
-      };
-
-    }
-
-
-    const email = "ad0001@sirzon.app";
-
-
-    /* Firebase Authentication Login */
-
-    const result =
-      await signInWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
-
-
-    const user = result.user;
-
-
-    /* Get Admin Firestore data */
-
-    const userRef =
-      doc(db, "users", "AD0001");
-
-    const userDoc =
-      await getDoc(userRef);
-
-
-    /* If Firestore document missing,
-       recreate it */
-
-    if (!userDoc.exists()) {
-
-      await setDoc(
-        userRef,
-        {
-
-          code: "AD0001",
-
-          admin: "Sirzon",
-
-          role: "AD",
-
-          uid: user.uid,
-
-          email: email
-
-        },
-        {
-          merge: true
-        }
-      );
-
-    }
-
-
-    return {
-
-      success: true,
-
-      uid: user.uid,
-
-      code: "AD0001",
-
-      role: "AD"
-
-    };
-
-
-  } catch (error) {
-
-    console.error("Admin Login Error:", error);
-
-
-    let message =
-      "Invalid code or password";
-
-
-    if (error.code === "auth/user-not-found") {
-
-      message =
-        "Admin account abhi Firebase me create nahi hua";
-
-    }
-
-    if (error.code === "auth/wrong-password" ||
-        error.code === "auth/invalid-credential") {
-
-      message =
-        "Admin password galat hai";
-
-    }
-
-    if (error.code === "auth/too-many-requests") {
-
-      message =
-        "Bahut baar login try hua hai. Thodi der baad try karo";
-
-    }
-
-
-    return {
-
-      success: false,
-
-      message: message
-
-    };
-
-  }
-
-};
-
-
-/* =========================
-   GLOBAL FIREBASE ACCESS
-========================= */
-
-window.sirzonAuth = auth;
-
-window.sirzonDB = db;
-
-
-console.log("SIRZON Firebase Connected");
-
-</script>
-
 </body>
 </html>
