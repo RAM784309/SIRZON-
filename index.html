@@ -12,17 +12,11 @@ body{ background:#eef7f0; color:#222; }
 .login-page{ min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px; background:linear-gradient(135deg,#198754,#0f5132); }
 .login-box{ width:100%; max-width:400px; background:white; padding:30px; border-radius:20px; box-shadow:0 10px 30px rgba(0,0,0,.2); }
 .logo{ text-align:center; font-size:34px; font-weight:bold; color:#198754; margin-bottom:5px; }
-.subtitle{ text-function setupDistributePageUI(){ 
-    var container = document.getElementById("adminBranchSelectContainer"); 
-    if(!container) return; 
-    if(currentUser && currentUser.role === "AD"){ 
-        container.style.display = "block"; 
-        populateDistributeBranchDropdown(); 
-    } else { 
-        container.style.display = "none"; 
-    } 
-} 
-:center; color:#777; margin-bottom:25px; }
+.subtitle{
+  text-align:center;
+  color:#777;
+  margin-bottom:25px;
+}
 input,select{ width:100%; padding:13px; border:1px solid #ddd; border-radius:10px; margin:7px 0 12px; outline:none; }
 button{ border:0; border-radius:10px; padding:13px 18px; cursor:pointer; }
 .login-btn{ width:100%; background:#198754; color:white; font-size:16px; font-weight:bold; }
@@ -119,8 +113,15 @@ button{ border:0; border-radius:10px; padding:13px 18px; cursor:pointer; }
 <label>Password</label>
 <input id="loginPass" type="password" placeholder="Enter password">
 <button class="login-btn" onclick="login()"> LOGIN </button>
-<div class="register-link" onclick="showRegister()"> Create New Account </div>
-</div>
+
+<button type="button" style="display:block;width:100%;margin-top:12px;padding:12px;background:#198754;color:white;border:0;border-radius:8px;font-size:15px;" onclick="testFirebase()">🔥 Test Firebase</button>
+
+<div class="register-link" onclick="showRegister()"> Create New Account </div> </div>
+<button type="button"
+onclick="firebaseLoginTest()"
+style="display:block;width:100%;margin-top:10px;padding:12px;background:#198754;color:white;border:0;border-radius:8px;">
+🔐 Test Firebase Login
+</button>
 <div id="registerForm" style="display:none">
 <label>Full Name</label>
 <input id="regName" type="text" placeholder="Enter name">
@@ -612,34 +613,38 @@ document.getElementById("regUser").value = "";
 document.getElementById("regPass").value = "";
 showLogin();
 }
-function login(){
-var username = document.getElementById("loginUser").value.trim();
-var password = document.getElementById("loginPass").value;
-if(!username || !password){
-alert( "Please enter code and password" );
-return;
-}
-var user = db.users.find( function(u){
-return ( u.username === username && u.password === password );
-} );
-if( username === "admin" && password === "1234" ){
-user = { id:"ADMIN", name:"Administrator", username:"admin", password:"1234", role:"AD", joinDate:"01/01/2026", code:"AD0001" };
-}
-if(!user){
-alert( "Invalid code or password" );
-return;
-}
-if(user.role === "PENDING"){
-alert( "This account has no role yet.\nPlease contact Admin." );
-return;
-}
-if( user.role !== "AD" && user.role !== "BR" && user.role !== "MB" ){
-alert( "Invalid user role" );
-return;
-}
-localStorage.setItem( "sirzon_current_user", JSON.stringify(user) );
-currentUser = user;
-showApp(user);
+async function login(){
+  var username = document.getElementById("loginUser").value.trim();
+  var password = document.getElementById("loginPass").value;
+
+  if(!username || !password){
+    alert("Please enter code and password");
+    return;
+  }
+
+  var user = await window.firebaseSirzonLogin(username, password);
+
+  if(!user){
+    return;
+  }
+
+  if(user.role === "PENDING"){
+    alert("This account has no role yet.\nPlease contact Admin.");
+    return;
+  }
+
+  if(user.role !== "AD" && user.role !== "BR" && user.role !== "MB"){
+    alert("Invalid user role");
+    return;
+  }
+
+  localStorage.setItem(
+    "sirzon_current_user",
+    JSON.stringify(user)
+  );
+
+  currentUser = user;
+  showApp(user);
 }
 function showApp(user){
 document.getElementById("loginPage").style.display = "none";
@@ -869,10 +874,11 @@ if(!branchEl || !memberSelect){ return; }
 var selectedBranch = branchEl.value;
 memberSelect.innerHTML = '<option value="">Select Member</option>';
 if(!selectedBranch){ return; }
-db.members.filter(function(m){
-return m.branch === selectedBranch;
-}).forEach(function(m){
-memberSelect.innerHTML += '<option value="' + m.name + '">' + m.name + " - " + m.memberId + "</option>";
+db.members.filter(function(m){ 
+    return m.branch === selectedBranch; 
+}).forEach(function(m){ 
+    // Yahan m.name ki jagah m.memberId karein:
+    memberSelect.innerHTML += '<option value="' + m.memberId + '">' + m.name + " - " + m.memberId + "</option>"; 
 });
 }
 function populateMemberBranchDropdown(){
@@ -1419,28 +1425,43 @@ box.appendChild(div);
 });
 }
 function renderTransactions(){
-var box = document.getElementById("transactionList");
-if(!box) return;
-box.innerHTML = "";
-var searchEl = document.getElementById("searchTransactionInput");
-var searchFilter = searchEl ? searchEl.value.toLowerCase() : "";
-var filtered = db.transactions.slice().reverse().filter(function(t){
-if(!searchFilter){ return true; }
-var memberObj = db.members.find(function(m){ return m.name === t.member; });
-var memberCode = memberObj && memberObj.memberId ? memberObj.memberId.toLowerCase() : "";
-var mMatch = t.member && t.member.toLowerCase().indexOf(searchFilter) !== -1;
-var codeMatch = memberCode.indexOf(searchFilter) !== -1;
-var typeMatch = t.type && t.type.toLowerCase().indexOf(searchFilter) !== -1;
-var branchMatch = t.branch && t.branch.toLowerCase().indexOf(searchFilter) !== -1;
-return (mMatch || codeMatch || typeMatch || branchMatch);
-});
-filtered.forEach(function(t){
-var detailsHtml = "";
-if(t.branch && t.member){
-var memberObj = db.members.find(function(m){ return m.name === t.member; });
-var memberCodeText = memberObj && memberObj.memberId ? " (" + memberObj.memberId + ")" : "";
-detailsHtml += `<br><small>Branch: ${t.branch} | Member: ${t.member}${memberCodeText}</small>`;
-}
+    var box = document.getElementById("transactionList");
+    if(!box) return;
+    box.innerHTML = "";
+    var searchEl = document.getElementById("searchTransactionInput");
+    var searchFilter = searchEl ? searchEl.value.toLowerCase() : "";
+    var filtered = db.transactions.slice().reverse().filter(function(t){
+        if(!searchFilter){
+            return true;
+        }
+        // Name aur MemberId dono se match check karein
+        var memberObj = db.members.find(function(m){
+            return m.name === t.member || m.memberId === t.member;
+        });
+        var memberCode = memberObj && memberObj.memberId ? memberObj.memberId.toLowerCase() : "";
+        var memberName = memberObj ? memberObj.name.toLowerCase() : (t.member ? t.member.toLowerCase() : "");
+        
+        var mMatch = memberName.indexOf(searchFilter) !== -1;
+        var codeMatch = memberCode.indexOf(searchFilter) !== -1;
+        var typeMatch = t.type && t.type.toLowerCase().indexOf(searchFilter) !== -1;
+        var branchMatch = t.branch && t.branch.toLowerCase().indexOf(searchFilter) !== -1;
+        return (mMatch || codeMatch || typeMatch || branchMatch);
+    });
+    
+    filtered.forEach(function(t){
+        var detailsHtml = "";
+        if(t.branch && t.member){
+            // Yahan bhi dono check karein taaki sahi member object mile
+            var memberObj = db.members.find(function(m){
+                return m.name === t.member || m.memberId === t.member;
+            });
+            var memberName = memberObj ? memberObj.name : t.member;
+            var memberCodeText = memberObj && memberObj.memberId ? " (" + memberObj.memberId + ")" : "";
+            
+            detailsHtml += `<br><small>Branch: ${t.branch} | Member: ${memberName}${memberCodeText}</small>`;
+        }
+        // Baki ka code yahan aayega...
+
 if(t.type === "EMI Collect"){
 detailsHtml += `<br><small>Principal: ₹${t.principal || 0} + Interest: ₹${t.interest || 0}</small>`;
 }
@@ -1613,8 +1634,9 @@ function populateDistributeDropdowns(){
     } 
 
     membersToUse.forEach(function(m){ 
-        memberSelect.innerHTML += '<option value="' + m.name + '">' + m.name + " - " + m.memberId + "</option>"; 
-    }); 
+    // Yahan bhi m.name ki jagah m.memberId karein:
+    memberSelect.innerHTML += '<option value="' + m.memberId + '">' + m.name + " - " + m.memberId + "</option>"; 
+});
 } 
 
 function filterDistributeMembers(){ 
@@ -1627,72 +1649,78 @@ if(box){
 box.innerText = "₹" + available.toLocaleString("en-IN");
 }
 }
-function calculateSelectedMemberDistribution(){
-var memberEl = document.getElementById("distributeMember");
-var info = document.getElementById("distributionShareInfo");
-var amountInput = document.getElementById("distributeAmount");
-var now = new Date();
-var currentYear = now.getFullYear().toString();
-if(!memberEl || !info || !amountInput){ return; }
-var member = memberEl.value;
-updateDistributionAvailableBalance();
-info.style.display = "none";
-info.innerHTML = "";
-amountInput.value = "";
-if(!member){ return; }
-var memberObj = db.members.find(function(m){ return m.name === member; });
-if(!memberObj){ return; }
-var branch = memberObj.branch;
-var alreadyDistributed = db.transactions.some(function(t){
-return t.type === "Distribute" && t.branch === branch && t.member === member && t.year === currentYear;
-});
-if(alreadyDistributed){
-info.style.display = "block";
-info.innerHTML = '<div style="color:#dc3545;font-weight:bold;">❌ Is member ko ' + currentYear + ' ka distribution pehle hi mil chuka hai!</div>';
-return;
-}
-var totalDistributedSoFar = db.transactions
-.filter(function(t){ return t.type === "Distribute" && t.branch === branch && t.year === currentYear; })
-.reduce(function(sum, t){ return sum + Number(t.amount || 0); }, 0);
-var initialTotalEarnings = db.transactions.filter(function(t){ return t.type === "EMI Collect"; }).reduce(function(sum,t){ return sum + Number(t.interest || 0); }, 0) +
-db.transactions.filter(function(t){ return t.type === "Other IN"; }).reduce(function(sum,t){ return sum + Number(t.amount || 0); }, 0) -
-db.transactions.filter(function(t){ return t.type === "Other OUT"; }).reduce(function(sum,t){ return sum + Number(t.amount || 0); }, 0);
-var currentRemainingPool = Math.max(0, initialTotalEarnings - totalDistributedSoFar);
-var allBranchMembers = db.members.filter(function(m){ return m.branch === branch; });
-var remainingTotalSavings = 0;
-allBranchMembers.forEach(function(m){
-var isDistributed = db.transactions.some(function(t){
-return t.type === "Distribute" && t.branch === branch && t.member === m.name && t.year === currentYear;
-});
-if(!isDistributed){
-var mSav = db.transactions
-.filter(function(t){ return t.type === "Savings" && t.branch === branch && t.member === m.name; })
-.reduce(function(sum, t){ return sum + Number(t.amount || 0); }, 0);
-remainingTotalSavings += mSav;
-}
-});
-if(currentRemainingPool <= 0 || remainingTotalSavings <= 0){
-info.style.display = "block";
-info.innerHTML = '<div style="color:#dc3545;font-weight:bold;">❌ Is saal ke liye sabhi members ko distribution mil chuka hai ya pool khatam ho gaya hai.</div>';
-return;
-}
-var memberSavings = db.transactions
-.filter(function(t){ return (t.type === "Savings" && t.branch === branch && t.member === member); })
-.reduce(function(sum,t){ return sum + Number(t.amount || 0); }, 0);
-if(memberSavings <= 0){
-info.style.display = "block";
-info.innerHTML = '<div style="color:#dc3545;font-weight:bold;">❌ Is member ki koi savings nahi hai.</div>';
-return;
-}
-var share = Math.round(((currentRemainingPool * memberSavings) / remainingTotalSavings) * 100) / 100;
-amountInput.value = share;
-info.style.display = "block";
-info.innerHTML = '<div style="display:grid;gap:4px;font-size:13px;color:#333;">' +
-'<div><b>Distribution Year:</b> ' + currentYear + '</div>' +
-'<div><b>Remaining Pool:</b> ₹' + currentRemainingPool.toLocaleString("en-IN") + ' | <b>Remaining Savings:</b> ₹' + remainingTotalSavings.toLocaleString("en-IN") + '</div>' +
-'<div><b>Member Savings:</b> ₹' + memberSavings.toLocaleString("en-IN") + '</div>' +
-'<div style="margin-top:4px;font-size:16px;font-weight:bold;color:#198754;">💰 Earning Share: ₹' + share.toLocaleString("en-IN", { minimumFractionDigits:2, maximumFractionDigits:2 }) + '</div>' +
-'</div>';
+function calculateSelectedMemberDistribution(){      
+    var memberEl = document.getElementById("distributeMember");      
+    var info = document.getElementById("distributionShareInfo");      
+    var amountInput = document.getElementById("distributeAmount");      
+    var now = new Date();      
+    var currentYear = now.getFullYear().toString();           
+    if(!memberEl || !info || !amountInput){          
+        return;      
+    }           
+    var memberVal = memberEl.value; // Yeh memberId ya name ho sakta hai
+    updateDistributionAvailableBalance();      
+    info.style.display = "none";      
+    info.innerHTML = "";      
+    amountInput.value = "";           
+    if(!memberVal){          
+        return;      
+    }           
+    // Member ko memberId ya name se khojein
+    var memberObj = db.members.find(function(m){          
+        return m.memberId === memberVal || m.name === memberVal;      
+    });           
+    if(!memberObj){          
+        return;      
+    }           
+    var branch = memberObj.branch;      
+    var memberNameForCheck = memberObj.name; 
+    var memberIdForCheck = memberObj.memberId;          
+    
+    // Check karein ki is member ko is saal distribution mil chuka hai ya nahi (ID ya Name dono se)
+    var alreadyDistributed = db.transactions.some(function(t){          
+        return t.type === "Distribute" && t.branch === branch && (t.memberId === memberIdForCheck || t.member === memberNameForCheck) && t.year === currentYear;      
+    });           
+
+    if(alreadyDistributed){          
+        info.style.display = "block";          
+        info.innerHTML = '<div style="color:#dc3545;font-weight:bold;">❌ Is member (' + memberNameForCheck + ' - ' + memberIdForCheck + ') ko ' + currentYear + ' ka distribution pehle hi mil chuka hai!</div>';          
+        return;      
+    }           
+
+    var totalDistributedSoFar = db.transactions          .filter(function(t){ return t.type === "Distribute" && t.branch === branch && t.year === currentYear; })          .reduce(function(sum, t){ return sum + Number(t.amount || 0); }, 0);               
+
+    var initialTotalEarnings = db.transactions.filter(function(t){ return t.type === "EMI Collect"; }).reduce(function(sum,t){ return sum + Number(t.interest || 0); }, 0)          + db.transactions.filter(function(t){ return t.type === "Other IN"; }).reduce(function(sum,t){ return sum + Number(t.amount || 0); }, 0)          - db.transactions.filter(function(t){ return t.type === "Other OUT"; }).reduce(function(sum,t){ return sum + Number(t.amount || 0); }, 0);               
+
+    var currentRemainingPool = Math.max(0, initialTotalEarnings - totalDistributedSoFar);      
+    var allBranchMembers = db.members.filter(function(m){ return m.branch === branch; });      
+    var remainingTotalSavings = 0;           
+
+    allBranchMembers.forEach(function(m){          
+        var isDistributed = db.transactions.some(function(t){              
+            return t.type === "Distribute" && t.branch === branch && (t.memberId === m.memberId || t.member === m.name) && t.year === currentYear;          
+        });          
+        if(!isDistributed){              
+            var mSav = db.transactions                  .filter(function(t){ return t.type === "Savings" && t.branch === branch && (t.memberId === m.memberId || t.member === m.name); })                  .reduce(function(sum, t){ return sum + Number(t.amount || 0); }, 0);              
+            remainingTotalSavings += mSav;          }      });           
+
+    if(currentRemainingPool <= 0 || remainingTotalSavings <= 0){          
+        info.style.display = "block";          
+        info.innerHTML = '<div style="color:#dc3545;font-weight:bold;">❌ Is saal ke liye sabhi members ko distribution mil chuka hai ya pool khatam ho gaya hai.</div>';          
+        return;      }           
+
+    // Member ki savings calculate karte waqt bhi ID aur Name dono match karein
+    var memberSavings = db.transactions          .filter(function(t){ return (t.type === "Savings" && t.branch === branch && (t.memberId === memberIdForCheck || t.member === memberNameForCheck)); })          .reduce(function(sum,t){ return sum + Number(t.amount || 0); }, 0);               
+
+    if(memberSavings <= 0){          
+        info.style.display = "block";          
+        info.innerHTML = '<div style="color:#dc3545;font-weight:bold;">❌ Is member ki koi savings nahi hai ya record mein savings nahi mili.</div>';          
+        return;      }           
+
+    var share = Math.round(((currentRemainingPool * memberSavings) / remainingTotalSavings) * 100) / 100;      
+    amountInput.value = share;      
+    info.style.display = "block";      
+    info.innerHTML = '<div style="display:grid;gap:4px;font-size:13px;color:#333;">' + '<div><b>Distribution Year:</b> ' + currentYear + '</div>' + '<div><b>Remaining Pool:</b> ₹' + currentRemainingPool.toLocaleString("en-IN") + ' | <b>Remaining Savings:</b> ₹' + remainingTotalSavings.toLocaleString("en-IN") + '</div>' + '<div><b>Member Savings:</b> ₹' + memberSavings.toLocaleString("en-IN") + '</div>' + '<div style="margin-top:4px;font-size:16px;font-weight:bold;color:#198754;">💰 Earning Share: ₹' + share.toLocaleString("en-IN", { minimumFractionDigits:2, maximumFractionDigits:2 }) + '</div>' + '</div>';  
 }
 function renderDistributions(){
 var box = document.getElementById("distributeList");
@@ -1739,45 +1767,58 @@ refreshAll();
 box.appendChild(itemEl);
 });
 }
-function addDistribute(){
-    var member = document.getElementById("distributeMember").value;
-    var amount = Number(document.getElementById("distributeAmount").value);
-    var desc = document.getElementById("distributeDescription").value;
-    var now = new Date();
-    var currentYear = now.getFullYear().toString();
-
-    if(!member || !amount || amount <= 0){
-        alert("Kripya valid member aur amount select karein!");
-        return;
+function addDistribute(){     
+    var memberEl = document.getElementById("distributeMember");
+    var memberVal = memberEl ? memberEl.value : "";     
+    var amount = Number(document.getElementById("distributeAmount").value);     
+    var desc = document.getElementById("distributeDescription").value;     
+    var now = new Date();     
+    var currentYear = now.getFullYear().toString();      
+    
+    if(!memberVal || !amount || amount <= 0){         
+        alert("Kripya valid member aur amount select karein!");         
+        return;     }      
+    
+    var memberObj = db.members.find(function(m){ 
+        return m.name === memberVal || m.memberId === memberVal; 
+    });     
+    
+    if(!memberObj) return;      
+    
+    var availableEarnings = getDistributionAvailableBalance();     
+    if(amount > availableEarnings){         
+        alert("Error: Distribution amount available earnings balance (₹" + availableEarnings.toLocaleString("en-IN") + ") se zyada nahi ho sakta!");         
+        return;     }      
+    
+    db.transactions.push({         
+        id: Date.now(), // <-- Yeh line add ki gayi hai taaki har entry ki unique ID bane
+        type: "Distribute",         
+        branch: memberObj.branch,         
+        member: memberObj.name,        
+        amount: amount,         
+        year: currentYear,         
+        description: desc || ("Yearly Profit Distribution - " + currentYear),         
+        date: new Date().toLocaleString()     });      
+    
+    saveDB();     
+    alert("Distribution successfully saved!");     
+    document.getElementById("distributeAmount").value = "";     
+    document.getElementById("distributeDescription").value = "";     
+    document.getElementById("distributionShareInfo").style.display = "none";     
+    document.getElementById("distributeMember").value = "";     
+    refreshAll(); 
+}
+function deleteTransaction(id) {
+    if (confirm("Kya aap is distribution record ko delete karna chahte hain?")) {
+        // Sirf wahi item filter out hoga jiski ID match karegi, baaki history safe rahegi
+        db.transactions = db.transactions.filter(function(item) {
+            return item.id !== id;
+        });
+        
+        saveDB();
+        refreshAll();
+        alert("Record successfully deleted!");
     }
-
-    // Available earnings balance check
-    var availableEarnings = getDistributionAvailableBalance();
-    if(amount > availableEarnings){
-        alert("Error: Distribution amount available earnings balance (₹" + availableEarnings.toLocaleString("en-IN") + ") se zyada nahi ho sakta!");
-        return;
-    }
-
-    var memberObj = db.members.find(function(m){ return m.name === member; });
-    if(!memberObj) return;
-
-    db.transactions.push({
-        type: "Distribute",
-        branch: memberObj.branch,
-        member: member,
-        amount: amount,
-        year: currentYear,
-        description: desc || ("Yearly Profit Distribution - " + currentYear),
-        date: new Date().toLocaleString()
-    });
-
-    saveDB();
-    alert("Distribution successfully saved!");
-    document.getElementById("distributeAmount").value = "";
-    document.getElementById("distributeDescription").value = "";
-    document.getElementById("distributionShareInfo").style.display = "none";
-    document.getElementById("distributeMember").value = "";
-    refreshAll();
 }
 /* ===================================================== INITIALIZATION ===================================================== */
 var currentUser = null;
@@ -1794,6 +1835,108 @@ document.getElementById("loginPage").style.display = "flex";
 updateRealTimeBadges();
 populateDistributeDropdowns();
 filterDistributeMembers();
+</script>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
+  import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
+  const firebaseConfig = {
+    apiKey: "AIzaSyD9ChxuR4xmP_BpTr0QykUWmS1ET5Q7KQE",
+    authDomain: "sirzon-7623d.firebaseapp.com",
+    projectId: "sirzon-7623d",
+    storageBucket: "sirzon-7623d.firebasestorage.app",
+    messagingSenderId: "864622428392",
+    appId: "1:864622428392:web:074240e85255e9e9b2895d"
+  };
+
+  const firebaseApp = initializeApp(firebaseConfig);
+  const firestoreDB = getFirestore(firebaseApp);
+const auth = getAuth(firebaseApp);
+window.firebaseAuth = auth;
+
+window.firebaseLoginTest = async function () {
+  try {
+    const email = prompt("Firebase Email डालें:");
+    const password = prompt("Firebase Password डालें:");
+
+    if (!email || !password) return;
+
+    const result = await signInWithEmailAndPassword(
+      auth,
+      email,
+      password
+    );
+
+    alert("✅ Firebase Login Successful!\n" + result.user.email);
+
+  } catch (error) {
+    alert("❌ Firebase Login Error: " + error.message);
+  }
+};
+
+window.firebaseSirzonLogin = async function(username, password) {
+  try {
+    const userDoc = await getDoc(
+      doc(firestoreDB, "users", username)
+    );
+
+    if (!userDoc.exists()) {
+      throw new Error("User " + username + " Firebase में नहीं मिला");
+    }
+
+    const userData = userDoc.data();
+
+    if (!userData.email) {
+      throw new Error("इस user का email Firestore में नहीं है");
+    }
+
+    const result = await signInWithEmailAndPassword(
+      auth,
+      userData.email,
+      password
+    );
+
+    return {
+      id: result.user.uid,
+      name: userData.name,
+      username: userData.code,
+      role: userData.role,
+      code: userData.code,
+      email: userData.email
+    };
+
+  } catch (error) {
+    alert("❌ Login Error: " + error.message);
+    return null;
+  }
+};
+
+  window.firestoreDB = firestoreDB;
+
+  window.testFirebase = async function () {
+    try {
+      await setDoc(
+        doc(firestoreDB, "system", "connectionTest"),
+        {
+          connected: true,
+          time: new Date().toISOString()
+        }
+      );
+
+      const snap = await getDoc(
+        doc(firestoreDB, "system", "connectionTest")
+      );
+
+      if (snap.exists()) {
+        alert("✅ Firebase + Firestore Connected!");
+      } else {
+        alert("❌ Data read nahi hua.");
+      }
+
+    } catch (error) {
+      alert("❌ Firestore Error: " + error.message);
+    }
+  };
 </script>
 </body>
 </html>
