@@ -446,16 +446,7 @@ style="display:block;width:100%;margin-top:10px;padding:12px;background:#198754;
 <p style="margin-top:8px" id="accountBranchesRow"> Total Branches: <b id="accountBranches">0</b> </p>
 <p style="margin-top:8px" id="accountMembersRow"> Total Members: <b id="accountMembers">0</b> </p>
 </div>
-<!-- BACKUP -->
-<div class="card" style="margin-top:15px;">
-<h3 style="color:#198754;margin-bottom:10px;font-size:16px;"> 💾 Data Backup & Restore </h3>
-<p style="font-size:13px;color:#666;margin-bottom:12px;"> Download a backup file of your entire database or restore from a previous backup file. </p>
-<div style="display:flex;gap:10px;">
-<button class="login-btn" style="background:#0d6efd;font-size:14px;padding:10px;" onclick="exportBackupData()"> Backup JSON </button>
-<button class="login-btn" style="background:#6c757d;font-size:14px;padding:10px;" onclick="document.getElementById('importFile').click()"> Restore JSON </button>
-<input type="file" id="importFile" style="display:none" accept=".json" onchange="importBackupData(event)">
-</div>
-</div>
+
 <div style="margin-top:15px;text-align:center;">
 <button class="login-btn" style="background:#dc3545;width:auto;padding:10px 25px;font-size:14px;" onclick="logout()"> LOGOUT </button>
 </div>
