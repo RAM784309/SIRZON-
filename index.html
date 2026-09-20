@@ -1974,6 +1974,8 @@ window.firebaseSirzonLogin = async function(username, password) {
       throw new Error("User " + username + " Firebase में नहीं मिला");
     }
 
+const userData = userDoc.data();
+
     if (!userData.email) {
       throw new Error("इस user का email Firestore में नहीं है");
     }
