@@ -154,7 +154,6 @@ style="display:block;width:100%;margin-top:10px;padding:12px;background:#198754;
 <p><b>Role:</b> <span id="sideMemberProfileRole">Member</span></p>
 <p><b>Join date:</b> <span id="sideMemberJoinDate">06/09/2026</span></p>
 <p><b>Usercode:</b> <span id="sideMemberCode">MB0001</span></p>
-<p><b>Password:</b> <span id="sideMemberPasswordText">1234</span> <button onclick="togglePasswordVisibility()" style="border:none;background:none;color:#198754;cursor:pointer;font-size:12px;text-decoration:underline;margin-left:5px;" id="togglePassBtn">Show</button></p>
 </div>
 </div>
 <!-- MENU LINKS -->
@@ -498,21 +497,23 @@ style="display:block;width:100%;margin-top:10px;padding:12px;background:#198754;
 </div>
 <script>
 /* ===================================================== DATABASE ===================================================== */
-var defaultDB = { users:[], branches:[], members:[], transactions:[], loans:[] };
-var db;
-try{
-db = JSON.parse( localStorage.getItem("sirzon_db") );
-}catch(error){
-db = null;
-}
-if(!db || typeof db !== "object"){ db = defaultDB; }
-if(!Array.isArray(db.users)){ db.users = []; }
-if(!Array.isArray(db.branches)){ db.branches = []; }
-if(!Array.isArray(db.members)){ db.members = []; }
-if(!Array.isArray(db.transactions)){ db.transactions = []; }
-if(!Array.isArray(db.loans)){ db.loans = []; }
+var db = {
+  users: [],
+  branches: [],
+  members: [],
+  transactions: [],
+  loans: []
+};
+
+window.db = db;
+
 function saveDB(){
-localStorage.setItem( "sirzon_db", JSON.stringify(db) );
+  if(window.firebaseSaveDB){
+    return window.firebaseSaveDB();
+  }
+
+  console.warn("Firebase database अभी ready नहीं है.");
+  return Promise.resolve();
 }
 function fourDigit(num){
 return ("0000" + num).slice(-4);
@@ -612,7 +613,10 @@ async function login(){
     alert("Please enter code and password");
     return;
   }
-
+// Firestore database load hone ka wait
+if(window.firebaseDBReady){
+  await window.firebaseDBReady;
+}
   var user = await window.firebaseSirzonLogin(username, password);
 
   if(!user){
@@ -628,11 +632,6 @@ async function login(){
     alert("Invalid user role");
     return;
   }
-
-  localStorage.setItem(
-    "sirzon_current_user",
-    JSON.stringify(user)
-  );
 
   currentUser = user;
   showApp(user);
@@ -707,9 +706,6 @@ document.getElementById("sideMemberProfileName").innerText = currentUser.name ||
 document.getElementById("sideMemberProfileRole").innerText = roleText;
 document.getElementById("sideMemberJoinDate").innerText = currentUser.joinDate || "06/09/2026";
 document.getElementById("sideMemberCode").innerText = currentUser.code || currentUser.memberId || currentUser.username || "MB0001";
-document.getElementById("sideMemberPasswordText").innerText = "••••";
-document.getElementById("sideMemberPasswordText").setAttribute("data-real", currentUser.password || "1234");
-document.getElementById("togglePassBtn").innerText = "Show";
 }
 function togglePasswordVisibility(){
 var passSpan = document.getElementById("sideMemberPasswordText");
@@ -764,16 +760,30 @@ if(userIndex !== -1){
 db.users[userIndex].password = newPass;
 }
 currentUser.password = newPass;
-localStorage.setItem( "sirzon_current_user", JSON.stringify(currentUser) );
 saveDB();
 alert( "Password changed successfully." );
 closeChangePassword();
 }
-function logout(){
-if(confirm("Are you sure you want to logout?")){
-localStorage.removeItem("sirzon_current_user");
-location.reload();
-}
+async function logout(){
+
+  if(!confirm("Are you sure you want to logout?")){
+    return;
+  }
+
+  try{
+
+    await window.firebaseLogout();
+
+    currentUser = null;
+
+    location.reload();
+
+  }catch(error){
+
+    alert("Logout Error: " + error.message);
+
+  }
+
 }
 function showRegister(){
 document.getElementById("loginForm").style.display = "none";
@@ -1146,7 +1156,7 @@ document.getElementById("descOthers").value = "";
 document.getElementById("formOthers").classList.remove("active");
 refreshAll();
 }
-function addBranch(){
+async function addBranch(){
 var name = document.getElementById("branchName").value.trim();
 var manager = document.getElementById("branchManager").value.trim();
 var managerPassword = document.getElementById("branchManagerPassword").value;
@@ -1174,6 +1184,14 @@ code:branchCode,
 managerCode:managerCode,
 joinDate: new Date().toLocaleDateString()
 });
+await window.firebaseCreateManager(
+  managerCode,
+  managerPassword,
+  manager,
+  name,
+  branchCode,
+  branchId
+);
 db.users.push({
 id:Date.now() + 1,
 name:manager,
@@ -1813,24 +1831,32 @@ function deleteTransaction(id) {
 }
 /* ===================================================== INITIALIZATION ===================================================== */
 var currentUser = null;
-try{
-currentUser = JSON.parse(localStorage.getItem("sirzon_current_user"));
-}catch(error){
-currentUser = null;
-}
-if(currentUser){
-showApp(currentUser);
-} else {
+
 document.getElementById("loginPage").style.display = "flex";
-}
+document.getElementById("app").style.display = "none";
 updateRealTimeBadges();
 populateDistributeDropdowns();
 filterDistributeMembers();
 </script>
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
-  import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
+  import {
+  getFirestore,
+  doc,
+  setDoc,
+  getDoc,
+  collection,
+  query,
+  where,
+  getDocs
+} from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
+import {
+  getAuth,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
   const firebaseConfig = {
     apiKey: "AIzaSyD9ChxuR4xmP_BpTr0QykUWmS1ET5Q7KQE",
     authDomain: "sirzon-7623d.firebaseapp.com",
@@ -1845,6 +1871,79 @@ import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword } f
 const auth = getAuth(firebaseApp);
 window.firebaseAuth = auth;
 
+window.firebaseLogout = async function(){
+
+  try{
+
+    await signOut(auth);
+
+    console.log("✅ Firebase logout successful");
+
+  }catch(error){
+
+    console.error("❌ Firebase logout error:", error);
+
+    throw error;
+  }
+
+};
+window.firebaseCreateManager = async function(
+  managerCode,
+  password,
+  managerName,
+  branchName,
+  branchCode,
+  branchId
+){
+  try{
+
+    const managerEmail =
+      managerCode.toLowerCase() + "@sirzon.local";
+
+    const secondaryApp = initializeApp(
+      firebaseConfig,
+      "manager-" + managerCode
+    );
+
+    const secondaryAuth = getAuth(secondaryApp);
+
+    const result = await createUserWithEmailAndPassword(
+      secondaryAuth,
+      managerEmail,
+      password
+    );
+
+    await setDoc(
+      doc(firestoreDB, "users", managerCode),
+      {
+        role: "BR",
+name: managerName,
+code: managerCode,
+email: managerEmail,
+branch: branchName,
+branchCode: branchCode,
+branchId: branchId,
+joinDate: new Date().toLocaleDateString()
+      },
+      { merge: true }
+    );
+
+    await signOut(secondaryAuth);
+
+    console.log("✅ Manager Firebase Auth created:", managerCode);
+
+    return {
+      uid: result.user.uid,
+      email: managerEmail
+    };
+
+  }catch(error){
+
+    console.error("❌ Manager creation error:", error);
+
+    throw error;
+  }
+};
 window.firebaseLoginTest = async function () {
   try {
     const email = prompt("Firebase Email डालें:");
@@ -1875,8 +1974,6 @@ window.firebaseSirzonLogin = async function(username, password) {
       throw new Error("User " + username + " Firebase में नहीं मिला");
     }
 
-    const userData = userDoc.data();
-
     if (!userData.email) {
       throw new Error("इस user का email Firestore में नहीं है");
     }
@@ -1888,13 +1985,17 @@ window.firebaseSirzonLogin = async function(username, password) {
     );
 
     return {
-      id: result.user.uid,
-      name: userData.name,
-      username: userData.code,
-      role: userData.role,
-      code: userData.code,
-      email: userData.email
-    };
+  id: result.user.uid,
+  name: userData.name || "User",
+  username: userData.code || username,
+  role: userData.role || "",
+  code: userData.code || username,
+  email: userData.email || "",
+  branch: userData.branch || "",
+  branchCode: userData.branchCode || "",
+  branchId: userData.branchId || "",
+  joinDate: userData.joinDate || ""
+};
 
   } catch (error) {
     alert("❌ Login Error: " + error.message);
@@ -1903,6 +2004,122 @@ window.firebaseSirzonLogin = async function(username, password) {
 };
 
   window.firestoreDB = firestoreDB;
+  // ===============================
+// SIRZON FIRESTORE DATABASE
+// ===============================
+
+const sirzonDatabaseRef = doc(
+  firestoreDB,
+  "system",
+  "database"
+);
+
+// Firestore se SIRZON data load
+window.firebaseDBReady = (async function(){
+
+  try {
+
+    const snap = await getDoc(sirzonDatabaseRef);
+
+    if(snap.exists()){
+
+      const data = snap.data();
+
+      window.db.users =
+        Array.isArray(data.users) ? data.users : [];
+
+      window.db.branches =
+        Array.isArray(data.branches) ? data.branches : [];
+
+      window.db.members =
+        Array.isArray(data.members) ? data.members : [];
+
+      window.db.transactions =
+        Array.isArray(data.transactions) ? data.transactions : [];
+
+      window.db.loans =
+        Array.isArray(data.loans) ? data.loans : [];
+
+      console.log("✅ SIRZON database Firestore se load ho gaya");
+
+    }else{
+
+      // First time database create
+      await setDoc(sirzonDatabaseRef, {
+
+        users: [],
+        branches: [],
+        members: [],
+        transactions: [],
+        loans: []
+
+      });
+
+      console.log("✅ SIRZON Firestore database created");
+
+    }
+
+  }catch(error){
+
+    console.error(
+      "❌ Firestore database load error:",
+      error
+    );
+
+    alert(
+      "❌ Firestore Database Load Error:\n" +
+      error.message
+    );
+
+    throw error;
+  }
+
+})();
+
+
+// ===============================
+// SAVE SIRZON DATABASE
+// ===============================
+
+window.firebaseSaveDB = async function(){
+
+  try{
+
+    await setDoc(
+      sirzonDatabaseRef,
+      {
+
+        users: window.db.users || [],
+
+        branches: window.db.branches || [],
+
+        members: window.db.members || [],
+
+        transactions: window.db.transactions || [],
+
+        loans: window.db.loans || []
+
+      }
+    );
+
+    console.log("✅ SIRZON data Firestore me save ho gaya");
+
+  }catch(error){
+
+    console.error(
+      "❌ Firestore save error:",
+      error
+    );
+
+    alert(
+      "❌ Firestore Save Error:\n" +
+      error.message
+    );
+
+    throw error;
+  }
+
+};
 
   window.testFirebase = async function () {
     try {
@@ -1928,6 +2145,100 @@ window.firebaseSirzonLogin = async function(username, password) {
       alert("❌ Firestore Error: " + error.message);
     }
   };
+// ===============================
+// FIREBASE AUTH SESSION
+// AD / MG / MB
+// ===============================
+
+onAuthStateChanged(auth, async function(firebaseUser){
+
+  if(!firebaseUser){
+
+    currentUser = null;
+
+    document.getElementById("loginPage").style.display = "flex";
+    document.getElementById("app").style.display = "none";
+
+    return;
+  }
+
+  try{
+
+    // Firestore database ready hone ka wait
+    if(window.firebaseDBReady){
+      await window.firebaseDBReady;
+    }
+
+    // Firebase email se user document search
+    const userQuery = query(
+      collection(firestoreDB, "users"),
+      where("email", "==", firebaseUser.email)
+    );
+
+    const userSnapshot = await getDocs(userQuery);
+
+    if(userSnapshot.empty){
+
+      console.error(
+        "Firebase user ka Firestore profile nahi mila."
+      );
+
+      alert(
+        "❌ User profile Firestore me nahi mila."
+      );
+
+      await signOut(auth);
+
+      return;
+    }
+
+    const userDoc = userSnapshot.docs[0];
+    const userData = userDoc.data();
+
+    currentUser = {
+
+      id: firebaseUser.uid,
+
+      name: userData.name || "",
+
+      username: userData.code || userDoc.id,
+
+      code: userData.code || userDoc.id,
+
+      role: userData.role || "",
+
+      email: userData.email || firebaseUser.email,
+
+      branch: userData.branch || "",
+
+      branchCode: userData.branchCode || "",
+
+      joinDate: userData.joinDate || ""
+
+    };
+
+    console.log(
+      "✅ Firebase session:",
+      currentUser
+    );
+
+    showApp(currentUser);
+
+  }catch(error){
+
+    console.error(
+      "❌ Firebase session error:",
+      error
+    );
+
+    alert(
+      "❌ Session Error:\n" +
+      error.message
+    );
+
+  }
+
+});
 </script>
 </body>
 </html>
