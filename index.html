@@ -1274,9 +1274,19 @@ alert("Please fill all fields");
 return;
 }
 var memberNumber = 1;
-while(db.users.some(function(u){ return (u.username === "MB" + fourDigit(memberNumber)); })){
-memberNumber++;
+
+while(
+  db.users.some(function(u){
+    return u.username === "MB" + fourDigit(memberNumber);
+  }) ||
+  db.members.some(function(m){
+    return m.memberId === "MB" + fourDigit(memberNumber);
+  })
+){
+  memberNumber++;
 }
+
+var memberCode = "MB" + fourDigit(memberNumber);
 var memberCode = "MB" + fourDigit(memberNumber);
 var memberId = Date.now();
 var branchObj = db.branches.find(function(b){ return b.name === branch; });
@@ -1691,74 +1701,229 @@ box.appendChild(itemEl);
 function renderMembers(){
 var list = document.getElementById("memberList");
 if(!list) return;
+
 var searchInput = document.getElementById("searchMemberInput");
 var search = searchInput ? searchInput.value.trim().toLowerCase() : "";
+
 var membersToDisplay = db.members;
+
 if(currentUser && currentUser.role === "BR"){
-membersToDisplay = db.members.filter(function(m){ return m.branch === currentUser.branch; });
-} else if(currentUser && currentUser.role === "MB"){
-membersToDisplay = db.members.filter(function(m){ return m.name === currentUser.name; });
-}
-var filteredMembers = membersToDisplay.filter(function(m){
-var branchObj = db.branches.find(function(b){ return b.name === m.branch || b.code === m.branchCode; });
-var branchName = m.branch ? m.branch.toLowerCase() : "";
-var branchCode = branchObj && branchObj.code ? branchObj.code.toLowerCase() : (m.branchCode ? m.branchCode.toLowerCase() : "");
-var nameMatch = m.name && m.name.toLowerCase().indexOf(search) !== -1;
-var idMatch = m.memberId && m.memberId.toLowerCase().indexOf(search) !== -1;
-var branchNameMatch = branchName.indexOf(search) !== -1;
-var branchCodeMatch = branchCode.indexOf(search) !== -1;
-return (nameMatch || idMatch || branchNameMatch || branchCodeMatch);
+membersToDisplay = db.members.filter(function(m){
+return m.branch === currentUser.branch;
 });
+} else if(currentUser && currentUser.role === "MB"){
+membersToDisplay = db.members.filter(function(m){
+return m.name === currentUser.name;
+});
+}
+
+var filteredMembers = membersToDisplay.filter(function(m){
+
+var branchObj = db.branches.find(function(b){
+return b.name === m.branch || b.code === m.branchCode;
+});
+
+var branchName = m.branch ? m.branch.toLowerCase() : "";
+
+var branchCode = branchObj && branchObj.code
+? branchObj.code.toLowerCase()
+: (m.branchCode ? m.branchCode.toLowerCase() : "");
+
+var nameMatch = m.name &&
+m.name.toLowerCase().indexOf(search) !== -1;
+
+var idMatch = m.memberId &&
+m.memberId.toLowerCase().indexOf(search) !== -1;
+
+var branchNameMatch = branchName.indexOf(search) !== -1;
+
+var branchCodeMatch = branchCode.indexOf(search) !== -1;
+
+return (
+nameMatch ||
+idMatch ||
+branchNameMatch ||
+branchCodeMatch
+);
+
+});
+
 if(filteredMembers.length === 0){
 list.innerHTML = '<div class="empty">No members found</div>';
 return;
 }
+
 list.innerHTML = "";
+
 filteredMembers.forEach(function(m){
-var branch = db.branches.find(function(b){ return (b.name === m.branch || b.code === m.branchCode); });
+
+var branch = db.branches.find(function(b){
+return (b.name === m.branch || b.code === m.branchCode);
+});
+
 var branchName = m.branch || (branch ? branch.name : "N/A");
 var managerName = branch ? branch.manager : "N/A";
 var managerMobile = branch ? branch.mobile : "N/A";
+
 var joinDate = m.joinDate || "06/09/2026";
 var memberCode = m.memberId || "N/A";
 var memberMobile = m.mobile || "N/A";
-var branchCodeText = branch ? " [" + branch.code + "]" : (m.branchCode ? " [" + m.branchCode + "]" : "");
+
+var status = m.status || "Active";
+
+var branchCodeText = branch
+? " [" + branch.code + "]"
+: (m.branchCode ? " [" + m.branchCode + "]" : "");
+
+var statusColor = status === "Active" ? "#198754" : "#dc3545";
+
 var div = document.createElement("div");
 div.className = "list-item";
+
 if(currentUser && currentUser.role === "BR"){
-div.innerHTML = `<div><strong>${m.name}</strong><div style="font-size:13px;color:#555;margin-top:4px;">Join Date: <b>${joinDate}</b></div><div style="font-size:13px;color:#555;">Member Code: <b>${memberCode}</b></div><div style="font-size:13px;color:#555;">Member Mobile No.: ${memberMobile}</div></div>`;
+
+div.innerHTML = `
+<div>
+<strong>${m.name}</strong>
+
+<div style="font-size:13px;color:#555;margin-top:4px;">
+Join Date: <b>${joinDate}</b>
+</div>
+
+<div style="font-size:13px;color:#555;">
+Member Code: <b>${memberCode}</b>
+</div>
+
+<div style="font-size:13px;color:#555;">
+Member Mobile No.: ${memberMobile}
+</div>
+
+<div style="font-size:13px;color:#555;">
+Status:
+<b style="color:${statusColor};">${status}</b>
+</div>
+
+</div>`;
+
 } else if(currentUser && currentUser.role === "MB"){
-div.innerHTML = `<div><strong>${m.name}</strong><div style="font-size:13px;color:#555;margin-top:4px;">Join Date: <b>${joinDate}</b></div><div style="font-size:13px;color:#555;">Member Code: <b>${memberCode}</b></div><div style="font-size:13px;color:#555;">Member Mobile No.: ${memberMobile}</div><div style="font-size:13px;color:#555;">Branch Name: <b>${branchName}${branchCodeText}</b></div><div style="font-size:13px;color:#555;">Manager Name: ${managerName}</div><div style="font-size:13px;color:#555;">Manager Mobile No.: ${managerMobile}</div></div>`;
+
+div.innerHTML = `
+<div>
+<strong>${m.name}</strong>
+
+<div style="font-size:13px;color:#555;margin-top:4px;">
+Join Date: <b>${joinDate}</b>
+</div>
+
+<div style="font-size:13px;color:#555;">
+Member Code: <b>${memberCode}</b>
+</div>
+
+<div style="font-size:13px;color:#555;">
+Member Mobile No.: ${memberMobile}
+</div>
+
+<div style="font-size:13px;color:#555;">
+Status:
+<b style="color:${statusColor};">${status}</b>
+</div>
+
+<div style="font-size:13px;color:#555;">
+Branch Name: <b>${branchName}${branchCodeText}</b>
+</div>
+
+<div style="font-size:13px;color:#555;">
+Manager Name: ${managerName}
+</div>
+
+<div style="font-size:13px;color:#555;">
+Manager Mobile No.: ${managerMobile}
+</div>
+
+</div>`;
+
 } else {
-div.innerHTML = `<div><strong>${m.name}</strong><div style="font-size:13px;color:#555;margin-top:4px;">Join Date: <b>${joinDate}</b></div><div style="font-size:13px;color:#555;">Member Code: <b>${memberCode}</b></div><div style="font-size:13px;color:#555;">Member Mobile No.: ${memberMobile}</div><div style="font-size:13px;color:#555;">Branch Name: <b>${branchName}${branchCodeText}</b></div><div style="font-size:13px;color:#555;">Manager Name: ${managerName}</div><div style="font-size:13px;color:#555;">Manager Mobile No.: ${managerMobile}</div></div>`;
+
+div.innerHTML = `
+<div>
+<strong>${m.name}</strong>
+
+<div style="font-size:13px;color:#555;margin-top:4px;">
+Join Date: <b>${joinDate}</b>
+</div>
+
+<div style="font-size:13px;color:#555;">
+Member Code: <b>${memberCode}</b>
+</div>
+
+<div style="font-size:13px;color:#555;">
+Member Mobile No.: ${memberMobile}
+</div>
+
+<div style="font-size:13px;color:#555;">
+Status:
+<b style="color:${statusColor};">${status}</b>
+</div>
+
+<div style="font-size:13px;color:#555;">
+Branch Name: <b>${branchName}${branchCodeText}</b>
+</div>
+
+<div style="font-size:13px;color:#555;">
+Manager Name: ${managerName}
+</div>
+
+<div style="font-size:13px;color:#555;">
+Manager Mobile No.: ${managerMobile}
+</div>
+
+</div>`;
+
 }
+
 setupLongPress(div, function(){
-if(currentUser && currentUser.role === "MB"){ return; }
-var memberActiveLoan = db.loans.filter(function(l){
-    return (l.member === m.name || l.member === m.memberId) && l.status === "Active";
-}).reduce(function(sum, l){
-    var paidPrincipal = db.transactions.filter(function(t){
-        return t.type === "EMI Collect" && t.loanId === l.id;
-    }).reduce(function(s, t){
-        return s + Number(t.principal || 0);
-    }, 0);
 
-    return sum + Math.max(0, Number(l.amount || 0) - paidPrincipal);
-}, 0);
-
-if(memberActiveLoan > 0){
-    alert("Member cannot exit!\n\nOutstanding Loan: ₹" + memberActiveLoan.toLocaleString("en-IN") + "\n\nPlease clear the loan first.");
-    return;
+if(currentUser && currentUser.role === "MB"){
+return;
 }
-if(confirm('Do you want to EXIT member "' + m.name + '"?')){
-db.members = db.members.filter(function(item){ return (item.id !== m.id); });
-db.users = db.users.filter(function(u){ return (u.memberRecordId !== m.id && u.username !== m.memberId); });
+
+if(status === "Active"){
+
+if(confirm(
+'Deactivate member "' + m.name + '"?\n\n' +
+'Member Code: ' + memberCode +
+'\n\nMember data and history will remain safe.'
+)){
+
+m.status = "Deactivate";
+
 saveDB();
 refreshAll();
+
 }
+
+} else {
+
+if(confirm(
+'Activate member "' + m.name + '" again?\n\n' +
+'Member Code: ' + memberCode
+)){
+
+m.status = "Active";
+
+saveDB();
+refreshAll();
+
+}
+
+}
+
 });
+
 list.appendChild(div);
+
 });
+
 }
 function getDistributionAvailableBalance(){
 var interest = db.transactions.filter(function(t){ return t.type === "EMI Collect"; }).reduce(function(sum,t){ return sum + Number(t.interest || 0); }, 0);
