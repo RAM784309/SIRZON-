@@ -309,13 +309,23 @@ style="display:block;width:100%;margin-top:10px;padding:12px;background:#198754;
 <!-- OTHERS FORM -->
 <div class="form-box" id="formOthers">
 <h4>Others IN/OUT</h4>
+
+<select id="othersBranch">
+<option value="">Select Branch</option>
+</select>
+
 <select id="typeOthers">
 <option value="Other IN"> IN (+) </option>
 <option value="Other OUT"> OUT (-) </option>
 </select>
+
 <input id="amtOthers" type="number" placeholder="Enter amount">
+
 <input id="descOthers" type="text" placeholder="Enter description/purpose">
-<button class="login-btn" onclick="addQuickTransOthers()"> Submit Others </button>
+
+<button class="login-btn" onclick="addQuickTransOthers()">
+Submit Others
+</button>
 </div>
 <!-- SEARCH TRANSACTIONS -->
 <div style="margin-top:15px;">
@@ -1022,6 +1032,14 @@ function addSavingsTrans(){
 var branch = document.getElementById("savBranch").value;
 var member = document.getElementById("savMember").value;
 var amount = Number(document.getElementById("amtSavings").value);
+var branchObj = db.branches.find(function(b){
+    return b.name === branch;
+});
+
+if(branchObj && branchObj.status === "Closed"){
+    alert("This branch is closed. New Savings is not allowed.");
+    return;
+}
 if(!branch || !member || amount <= 0){
 alert("Please select branch, member and enter valid amount");
 return;
@@ -1049,6 +1067,14 @@ var durationVal = document.getElementById("loanDurationVal").value;
 if(!branch || !member || amount <= 0 || !durationVal){
 alert("Please fill all loan details properly");
 return;
+}
+var branchObj = db.branches.find(function(b){
+    return b.name === branch;
+});
+
+if(branchObj && branchObj.status === "Closed"){
+    alert("This branch is closed. New Loan is not allowed.");
+    return;
 }
 var savingsAmount = db.transactions.filter(function(t){ return t.type === "Savings"; }).reduce(function(sum,t){ return sum + Number(t.amount || 0); }, 0);
 var principalEMI = db.transactions.filter(function(t){ return t.type === "EMI Collect"; }).reduce(function(sum,t){ return sum + Number(t.principal || 0); }, 0);
@@ -1129,6 +1155,20 @@ document.getElementById("formEmi").classList.remove("active");
 refreshAll();
 }
 function addQuickTransOthers(){
+var branch = document.getElementById("othersBranch").value;
+
+if(!branch){
+    alert("Please select branch");
+    return;
+}
+var branchObj = db.branches.find(function(b){
+    return b.name === branch;
+});
+
+if(branchObj && branchObj.status === "Closed"){
+    alert("This branch is closed. Other IN/OUT is not allowed.");
+    return;
+}
 var subType = document.getElementById("typeOthers").value;
 var amount = Number(document.getElementById("amtOthers").value);
 var desc = document.getElementById("descOthers").value.trim();
@@ -1136,6 +1176,7 @@ if(amount <= 0){
 alert("Enter valid amount");
 return;
 }
+
 if(subType === "Other OUT"){
 var currentBalance = Number(document.getElementById("totalRemainingBalance").innerText.replace(/[₹,]/g,""));
 if(amount > currentBalance){
@@ -1146,6 +1187,7 @@ return;
 db.transactions.push({
 id:Date.now(),
 type:subType,
+branch:branch,
 amount:amount,
 description:desc,
 date:new Date().toLocaleString()
@@ -1166,10 +1208,16 @@ if(!name || !manager || !managerPassword || !mobile || !address){
 alert("Please fill all fields");
 return;
 }
-var managerNumber = 1;
-while(db.users.some(function(u){ return (u.username === "MG" + fourDigit(managerNumber)); })){
-managerNumber++;
+var managerNumber = db.branches.length + 1;
+
+while(
+    db.branches.some(function(b){
+        return b.managerCode === "MG" + fourDigit(managerNumber);
+    })
+){
+    managerNumber++;
 }
+
 var managerCode = "MG" + fourDigit(managerNumber);
 var branchNumber = db.branches.length + 1;
 var branchCode = "BRN-" + (100 + branchNumber);
@@ -1184,6 +1232,7 @@ code:branchCode,
 managerCode:managerCode,
 joinDate: new Date().toLocaleDateString()
 });
+
 await window.firebaseCreateManager(
   managerCode,
   managerPassword,
@@ -1192,6 +1241,7 @@ await window.firebaseCreateManager(
   branchCode,
   branchId
 );
+alert("Firebase Manager creation done");
 db.users.push({
 id:Date.now() + 1,
 name:manager,
@@ -1213,7 +1263,7 @@ document.getElementById("branchAddress").value = "";
 refreshAll();
 alert("Branch created successfully!\n\nManager Code: " + managerCode + "\nPassword: " + managerPassword);
 }
-function addMember(){
+async function addMember(){ 
 var branch = document.getElementById("memberBranch").value;
 var name = document.getElementById("memberName").value.trim();
 var mobile = document.getElementById("memberMobile").value.trim();
@@ -1230,6 +1280,19 @@ memberNumber++;
 var memberCode = "MB" + fourDigit(memberNumber);
 var memberId = Date.now();
 var branchObj = db.branches.find(function(b){ return b.name === branch; });
+alert("Creating Member: " + memberCode);
+await window.firebaseCreateMember(
+  memberCode,
+  password,
+  name,
+  branch,
+  branchObj ? branchObj.code : "",
+  branchObj ? branchObj.id : "",
+  mobile,
+  address,
+  new Date().toLocaleDateString()
+);
+alert("Firebase Member Created: " + memberCode);
 db.members.push({
 id:memberId,
 branch:branch,
@@ -1283,22 +1346,59 @@ if(currentUser && currentUser.role === "MB"){
 refreshMemberDashboard();
 return;
 }
-var savingsAmount = db.transactions.filter(function(t){ return t.type === "Savings"; }).reduce(function(sum,t){ return sum + Number(t.amount || 0); }, 0);
-var principalEMI = db.transactions.filter(function(t){ return t.type === "EMI Collect"; }).reduce(function(sum,t){ return sum + Number(t.principal || 0); }, 0);
-var interest = db.transactions.filter(function(t){ return t.type === "EMI Collect"; }).reduce(function(sum,t){ return sum + Number(t.interest || 0); }, 0);
-var otherIn = db.transactions.filter(function(t){ return t.type === "Other IN"; }).reduce(function(sum,t){ return sum + Number(t.amount || 0); }, 0);
-var otherOut = db.transactions.filter(function(t){ return t.type === "Other OUT"; }).reduce(function(sum,t){ return sum + Number(t.amount || 0); }, 0);
-var totalDistributed = db.transactions.filter(function(t){ return t.type === "Distribute"; }).reduce(function(sum,t){ return sum + Number(t.amount || 0); }, 0);
-var newLoanPrincipal = db.transactions.filter(function(t){ return t.type === "New Loan"; }).reduce(function(sum,t){ return sum + Number(t.amount || 0); }, 0);
+// ===============================
+// MANAGER BRANCH-WISE DATA
+// ADMIN = ALL DATA
+// MANAGER = ONLY OWN BRANCH
+// ===============================
+
+var visibleTransactions = db.transactions;
+
+var visibleLoans = db.loans;
+
+if(currentUser && currentUser.role === "BR"){
+    visibleTransactions = db.transactions.filter(function(t){
+        return t.branch === currentUser.branch;
+    });
+
+    visibleLoans = db.loans.filter(function(l){
+        return l.branch === currentUser.branch;
+    });
+}
+var savingsAmount = visibleTransactions.filter(function(t){ return t.type === "Savings"; }).reduce(function(sum,t){ return sum + Number(t.amount || 0); }, 0);
+
+var principalEMI = visibleTransactions.filter(function(t){ return t.type === "EMI Collect"; }).reduce(function(sum,t){ return sum + Number(t.principal || 0); }, 0);
+
+var interest = visibleTransactions.filter(function(t){ return t.type === "EMI Collect"; }).reduce(function(sum,t){ return sum + Number(t.interest || 0); }, 0);
+
+var otherIn = visibleTransactions.filter(function(t){ return t.type === "Other IN"; }).reduce(function(sum,t){ return sum + Number(t.amount || 0); }, 0);
+
+var otherOut = visibleTransactions.filter(function(t){ return t.type === "Other OUT"; }).reduce(function(sum,t){ return sum + Number(t.amount || 0); }, 0);
+
+var totalDistributed = visibleTransactions.filter(function(t){ return t.type === "Distribute"; }).reduce(function(sum,t){ return sum + Number(t.amount || 0); }, 0);
+
+var newLoanPrincipal = visibleTransactions.filter(function(t){ return t.type === "New Loan"; }).reduce(function(sum,t){ return sum + Number(t.amount || 0); }, 0);
+
 var availableSavings = savingsAmount + principalEMI - newLoanPrincipal;
+
 var earningsBalance = interest + otherIn - otherOut - totalDistributed;
+
 var totalBalance = availableSavings + earningsBalance;
-var activeLoanBalance = db.loans.filter(function(l){ return l.status === "Active"; }).reduce(function(sum,l){
-var paidPrincipal = db.transactions.filter(function(t){
-return (t.type === "EMI Collect" && t.loanId === l.id);
-}).reduce(function(s,t){ return s + Number(t.principal || 0); }, 0);
-var remainingPrincipal = Number(l.amount || 0) - paidPrincipal;
-return sum + Math.max(remainingPrincipal, 0);
+
+var activeLoanBalance = visibleLoans.filter(function(l){ 
+    return l.status === "Active"; 
+}).reduce(function(sum,l){
+
+    var paidPrincipal = visibleTransactions.filter(function(t){
+        return (t.type === "EMI Collect" && t.loanId === l.id);
+    }).reduce(function(s,t){
+        return s + Number(t.principal || 0);
+    }, 0);
+
+    var remainingPrincipal = Number(l.amount || 0) - paidPrincipal;
+
+    return sum + Math.max(remainingPrincipal, 0);
+
 }, 0);
 
 // Manager ke liye sirf self branch ke members count honge, Admin ke liye sabhi
@@ -1320,6 +1420,7 @@ renderBranches();
 renderMembers();
 renderDistributions();
 populateDistributeDropdowns();
+populateOthersBranchDropdown();
 checkReminders();
 }
 function refreshMemberDashboard(){
@@ -1440,9 +1541,33 @@ function renderTransactions(){
     var searchEl = document.getElementById("searchTransactionInput");
     var searchFilter = searchEl ? searchEl.value.toLowerCase() : "";
     var filtered = db.transactions.slice().reverse().filter(function(t){
-        if(!searchFilter){
-            return true;
+
+    // Admin ko sabhi transactions dikhेंगे
+    if(currentUser && currentUser.role === "BR"){
+        if(t.branch !== currentUser.branch){
+            return false;
         }
+    }
+
+    // Member ko sirf apna transaction dikhe
+    if(currentUser && currentUser.role === "MB"){
+        var memberObjForUser = db.members.find(function(m){
+            return m.memberId === currentUser.code ||
+                   m.name === currentUser.name ||
+                   m.memberId === currentUser.username;
+        });
+
+        var myMemberId = memberObjForUser ? memberObjForUser.memberId : currentUser.code;
+        var myMemberName = memberObjForUser ? memberObjForUser.name : currentUser.name;
+
+        if(t.member !== myMemberId && t.member !== myMemberName){
+            return false;
+        }
+    }
+
+    if(!searchFilter){
+        return true;
+    }
         // Name aur MemberId dono se match check karein
         var memberObj = db.members.find(function(m){
             return m.name === t.member || m.memberId === t.member;
@@ -1459,16 +1584,24 @@ function renderTransactions(){
     
     filtered.forEach(function(t){
         var detailsHtml = "";
-        if(t.branch && t.member){
-            // Yahan bhi dono check karein taaki sahi member object mile
-            var memberObj = db.members.find(function(m){
-                return m.name === t.member || m.memberId === t.member;
-            });
-            var memberName = memberObj ? memberObj.name : t.member;
-            var memberCodeText = memberObj && memberObj.memberId ? " (" + memberObj.memberId + ")" : "";
-            
-            detailsHtml += `<br><small>Branch: ${t.branch} | Member: ${memberName}${memberCodeText}</small>`;
-        }
+        if(t.branch){
+    var memberText = "";
+
+    if(t.member){
+        var memberObj = db.members.find(function(m){
+            return m.name === t.member || m.memberId === t.member;
+        });
+
+        var memberName = memberObj ? memberObj.name : t.member;
+        var memberCodeText = memberObj && memberObj.memberId
+            ? " (" + memberObj.memberId + ")"
+            : "";
+
+        memberText = " | Member: " + memberName + memberCodeText;
+    }
+
+    detailsHtml += `<br><small>Branch: ${t.branch}${memberText}</small>`;
+}
         // Baki ka code yahan aayega...
 
 if(t.type === "EMI Collect"){
@@ -1516,17 +1649,41 @@ filtered.forEach(function(b){
 var itemEl = document.createElement("div");
 itemEl.className = "item";
 itemEl.innerHTML = `
-<div><b>${b.name}</b> <small style="color:#198754;font-weight:bold;">[${b.code}]</small><br>
-<small>Manager: ${b.manager} | Mobile: ${b.mobile}</small><br>
-<small style="color:#777;">Address: ${b.address}</small></div>
+<div>
+<b>${b.name}</b>
+<small style="color:#198754;font-weight:bold;">[${b.code}]</small>
+<br>
+<small>Manager: ${b.manager} | Mobile: ${b.mobile}</small>
+<br>
+<small style="color:#777;">Address: ${b.address}</small>
+<br>
+<small style="font-weight:bold;color:${b.status === "Closed" ? "#dc3545" : "#198754"};">
+Status: ${b.status || "Active"}
+</small>
+</div>
 `;
 setupLongPress(itemEl, function(){
-if(confirm('Do you want to delete branch "' + b.name + '"?')){
-db.branches = db.branches.filter(function(item){ return (item.id !== b.id); });
-db.users = db.users.filter(function(u){ return (u.branchId !== b.id && u.branchCode !== b.code); });
+
+var currentStatus = b.status || "Active";
+
+if(currentStatus === "Active"){
+
+if(confirm('Close branch "' + b.name + '"?')){
+b.status = "Closed";
 saveDB();
 refreshAll();
 }
+
+}else{
+
+if(confirm('Activate branch "' + b.name + '" again?')){
+b.status = "Active";
+saveDB();
+refreshAll();
+}
+
+}
+
 });
 box.appendChild(itemEl);
 });
@@ -1577,7 +1734,23 @@ div.innerHTML = `<div><strong>${m.name}</strong><div style="font-size:13px;color
 }
 setupLongPress(div, function(){
 if(currentUser && currentUser.role === "MB"){ return; }
-if(confirm('Do you want to delete member "' + m.name + '"?')){
+var memberActiveLoan = db.loans.filter(function(l){
+    return (l.member === m.name || l.member === m.memberId) && l.status === "Active";
+}).reduce(function(sum, l){
+    var paidPrincipal = db.transactions.filter(function(t){
+        return t.type === "EMI Collect" && t.loanId === l.id;
+    }).reduce(function(s, t){
+        return s + Number(t.principal || 0);
+    }, 0);
+
+    return sum + Math.max(0, Number(l.amount || 0) - paidPrincipal);
+}, 0);
+
+if(memberActiveLoan > 0){
+    alert("Member cannot exit!\n\nOutstanding Loan: ₹" + memberActiveLoan.toLocaleString("en-IN") + "\n\nPlease clear the loan first.");
+    return;
+}
+if(confirm('Do you want to EXIT member "' + m.name + '"?')){
 db.members = db.members.filter(function(item){ return (item.id !== m.id); });
 db.users = db.users.filter(function(u){ return (u.memberRecordId !== m.id && u.username !== m.memberId); });
 saveDB();
@@ -1647,7 +1820,34 @@ function populateDistributeDropdowns(){
     memberSelect.innerHTML += '<option value="' + m.memberId + '">' + m.name + " - " + m.memberId + "</option>"; 
 });
 } 
+function populateOthersBranchDropdown(){
 
+    var select = document.getElementById("othersBranch");
+
+    if(!select) return;
+
+    select.innerHTML = '<option value="">Select Branch</option>';
+
+    var branchesToShow = db.branches;
+
+    if(currentUser && currentUser.role === "BR"){
+        branchesToShow = db.branches.filter(function(b){
+            return b.name === currentUser.branch;
+        });
+    }
+
+    branchesToShow.forEach(function(branch){
+
+        var option = document.createElement("option");
+
+        option.value = branch.name;
+        option.textContent = branch.name + " (" + branch.code + ")";
+
+        select.appendChild(option);
+
+    });
+
+}
 function filterDistributeMembers(){ 
     populateDistributeDropdowns(); 
 }
@@ -1895,8 +2095,7 @@ window.firebaseCreateManager = async function(
   branchCode,
   branchId
 ){
-  try{
-
+try {
     const managerEmail =
       managerCode.toLowerCase() + "@sirzon.local";
 
@@ -1941,9 +2140,70 @@ joinDate: new Date().toLocaleDateString()
 
     console.error("❌ Manager creation error:", error);
 
+    alert("Firebase Manager Error:\n" + error.message);
+
     throw error;
-  }
+}
 };
+
+window.firebaseCreateMember = async function(
+  memberCode,
+  password,
+  memberName,
+  branchName,
+  branchCode,
+  branchId,
+  mobile,
+  address,
+  joinDate
+){ 
+try {
+  const memberEmail = memberCode.toLowerCase() + "@sirzon.local";
+
+  const secondaryApp = initializeApp(
+    firebaseConfig,
+    "member-" + memberCode
+  );
+
+  const secondaryAuth = getAuth(secondaryApp);
+
+  const result = await createUserWithEmailAndPassword(
+    secondaryAuth,
+    memberEmail,
+    password
+  );
+
+  await setDoc(
+    doc(firestoreDB, "users", memberCode),
+    {
+      role: "MB",
+      name: memberName,
+      code: memberCode,
+      email: memberEmail,
+      branch: branchName,
+      branchCode: branchCode,
+      branchId: branchId,
+      mobile: mobile,
+      address: address,
+      joinDate: joinDate
+    },
+    { merge: true }
+  );
+
+    await signOut(secondaryAuth);
+
+  return result.user.uid;
+
+} catch(error) {
+
+  console.error("❌ Member creation error:", error);
+
+  alert("Firebase Member Error:\n" + error.message);
+
+  throw error;
+}
+};
+
 window.firebaseLoginTest = async function () {
   try {
     const email = prompt("Firebase Email डालें:");
@@ -1973,9 +2233,7 @@ window.firebaseSirzonLogin = async function(username, password) {
     if (!userDoc.exists()) {
       throw new Error("User " + username + " Firebase में नहीं मिला");
     }
-
 const userData = userDoc.data();
-
     if (!userData.email) {
       throw new Error("इस user का email Firestore में नहीं है");
     }
