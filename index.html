@@ -1076,9 +1076,37 @@ if(branchObj && branchObj.status === "Closed"){
     alert("This branch is closed. New Loan is not allowed.");
     return;
 }
-var savingsAmount = db.transactions.filter(function(t){ return t.type === "Savings"; }).reduce(function(sum,t){ return sum + Number(t.amount || 0); }, 0);
-var principalEMI = db.transactions.filter(function(t){ return t.type === "EMI Collect"; }).reduce(function(sum,t){ return sum + Number(t.principal || 0); }, 0);
-var existingNewLoans = db.transactions.filter(function(t){ return t.type === "New Loan"; }).reduce(function(sum,t){ return sum + Number(t.amount || 0); }, 0);
+var savingsAmount = db.transactions
+.filter(function(t){
+    return t.type === "Savings" &&
+           t.branch === branch;
+})
+.reduce(function(sum,t){
+    return sum + Number(t.amount || 0);
+},0);
+
+var principalEMI = db.transactions
+.filter(function(t){
+    return t.type === "EMI Collect" &&
+           t.branch === branch;
+})
+.reduce(function(sum,t){
+    return sum + Number(t.principal || 0);
+},0);
+
+var existingNewLoans = db.transactions
+.filter(function(t){
+    return t.type === "New Loan" &&
+           t.branch === branch;
+})
+.reduce(function(sum,t){
+    return sum + Number(t.amount || 0);
+},0);
+
+var availableSavings =
+    savingsAmount +
+    principalEMI -
+    existingNewLoans;
 var availableSavings = savingsAmount + principalEMI - existingNewLoans;
 if(amount > availableSavings){
 alert("Loan cannot be issued!\n\nAvailable Savings: ₹" + availableSavings.toLocaleString("en-IN") + "\nLoan Amount: ₹" + amount.toLocaleString("en-IN"));
@@ -1435,14 +1463,41 @@ checkReminders();
 }
 function refreshMemberDashboard(){
 var memberName = currentUser.name;
+
+var myMember = db.members.find(function(m){
+return (
+m.memberId === currentUser.code ||
+m.memberId === currentUser.memberId ||
+m.memberId === currentUser.username ||
+m.name === currentUser.name
+);
+});
+
+var memberId = myMember
+? myMember.memberId
+: (currentUser.memberId || currentUser.code || currentUser.username);
+
 var memberSavings = db.transactions.filter(function(t){
-return t.type === "Savings" && t.member === memberName;
-}).reduce(function(sum, t){ return sum + Number(t.amount || 0); }, 0);
+return (
+t.type === "Savings" &&
+(t.member === memberId || t.member === memberName)
+);
+}).reduce(function(sum, t){
+return sum + Number(t.amount || 0);
+}, 0);
 var memberDistribute = db.transactions.filter(function(t){
-return t.type === "Distribute" && t.member === memberName;
-}).reduce(function(sum, t){ return sum + Number(t.amount || 0); }, 0);
+return (
+t.type === "Distribute" &&
+(t.member === memberId || t.member === memberName)
+);
+}).reduce(function(sum, t){
+return sum + Number(t.amount || 0);
+}, 0);
 var activeLoans = db.loans.filter(function(l){
-return l.member === memberName && l.status === "Active";
+return (
+l.status === "Active" &&
+(l.member === memberId || l.member === memberName)
+);
 });
 var activeLoanTotal = activeLoans.reduce(function(sum, l){
 var paidPrincipal = db.transactions.filter(function(t){
@@ -1463,46 +1518,113 @@ renderMembers();
 checkReminders();
 }
 function renderMemberTransactions(){
-var box = document.getElementById("memberTransactionList");
-if(!box) return;
-box.innerHTML = "";
-var searchInput = document.getElementById("searchMemberTransInput");
-var search = searchInput ? searchInput.value.toLowerCase() : "";
-var myTrans = db.transactions.filter(function(t){
-return t.member === currentUser.name;
-}).slice().reverse().filter(function(t){
-if(!search) return true;
-return (t.type.toLowerCase().indexOf(search) !== -1 || (t.description && t.description.toLowerCase().indexOf(search) !== -1));
-});
-if(myTrans.length === 0){
-box.innerHTML = '<div class="empty">No transactions found</div>';
-return;
-}
-myTrans.forEach(function(t){
-var isOut = t.type === "New Loan" || t.type === "Other OUT";
-var sign = isOut ? "-" : "+";
-var amountColor = isOut ? "#dc3545" : "#198754";
-var details = "";
-if(t.type === "EMI Collect"){
-details = `<br><small>Principal: ₹${t.principal || 0} + Interest: ₹${t.interest || 0}</small>`;
-}
-if(t.duration){
-details = `<br><small>Duration: ${t.duration}</small>`;
-}
-var div = document.createElement("div");
-div.className = "item";
-div.innerHTML = `
-<div><b>${t.type}</b>${details}<br><small style="color:#777;">${t.date}</small></div>
-<div style="text-align:right;"><b style="color:${amountColor};font-size:17px;">${sign}₹${Number(t.amount || 0).toLocaleString("en-IN")}</b></div>
-`;
-box.appendChild(div);
-});
+    var box = document.getElementById("memberTransactionList");
+    if(!box) return;
+
+    box.innerHTML = "";
+
+    var searchInput = document.getElementById("searchMemberTransInput");
+    var search = searchInput ? searchInput.value.toLowerCase() : "";
+
+    // Current member ka record
+    var myMember = db.members.find(function(m){
+        return (
+            m.memberId === currentUser.code ||
+            m.name === currentUser.name
+        );
+    });
+
+    var myMemberId = myMember
+        ? myMember.memberId
+        : currentUser.code;
+
+    var myMemberName = myMember
+        ? myMember.name
+        : currentUser.name;
+
+    // Member ke transactions
+    var myTrans = db.transactions.filter(function(t){
+
+        return (
+            t.member === myMemberId ||
+            t.member === myMemberName
+        );
+
+    }).slice().reverse().filter(function(t){
+
+        if(!search) return true;
+
+        return (
+            (t.type && t.type.toLowerCase().indexOf(search) !== -1) ||
+            (t.description &&
+             t.description.toLowerCase().indexOf(search) !== -1)
+        );
+
+    });
+
+    if(myTrans.length === 0){
+        box.innerHTML = '<div class="empty">No transactions found</div>';
+        return;
+    }
+
+    myTrans.forEach(function(t){
+
+        var isOut =
+            t.type === "New Loan" ||
+            t.type === "Other OUT";
+
+        var sign = isOut ? "-" : "+";
+        var amountColor = isOut ? "#dc3545" : "#198754";
+
+        var details = "";
+
+        if(t.type === "EMI Collect"){
+            details =
+                `<br><small>
+                Principal: ₹${t.principal || 0}
+                + Interest: ₹${t.interest || 0}
+                </small>`;
+        }
+
+        if(t.duration){
+            details =
+                `<br><small>Duration: ${t.duration}</small>`;
+        }
+
+        var div = document.createElement("div");
+        div.className = "item";
+
+        div.innerHTML = `
+        <div>
+            <b>${t.type}</b>
+            ${details}
+            <br>
+            <small style="color:#777;">
+                ${t.date}
+            </small>
+        </div>
+
+        <div style="text-align:right;">
+            <b style="color:${amountColor};font-size:17px;">
+                ${sign}₹${Number(t.amount || 0).toLocaleString("en-IN")}
+            </b>
+        </div>
+        `;
+
+        box.appendChild(div);
+
+    });
 }
 function renderMemberLoans(){
 var box = document.getElementById("memberLoanList");
 if(!box) return;
 box.innerHTML = "";
-var myLoans = db.loans.filter(function(l){ return l.member === currentUser.name; }).slice().reverse();
+var myLoans = db.loans.filter(function(l){
+return l.member === currentUser.name ||
+       l.member === currentUser.memberId ||
+       l.member === currentUser.code ||
+       l.member === currentUser.username;
+}).slice().reverse();
 if(myLoans.length === 0){
 box.innerHTML = '<div class="empty">No loans found</div>';
 return;
@@ -1528,7 +1650,13 @@ var box = document.getElementById("memberEarningsList");
 if(!box) return;
 box.innerHTML = "";
 var myEarnings = db.transactions.filter(function(t){
-return t.type === "Distribute" && t.member === currentUser.name;
+return t.type === "Distribute" &&
+(
+t.member === currentUser.name ||
+t.member === currentUser.memberId ||
+t.member === currentUser.code ||
+t.member === currentUser.username
+);
 }).slice().reverse();
 if(myEarnings.length === 0){
 box.innerHTML = '<div class="empty">No earnings or distributions found</div>';
@@ -1559,21 +1687,41 @@ function renderTransactions(){
         }
     }
 
-    // Member ko sirf apna transaction dikhe
-    if(currentUser && currentUser.role === "MB"){
-        var memberObjForUser = db.members.find(function(m){
-            return m.memberId === currentUser.code ||
-                   m.name === currentUser.name ||
-                   m.memberId === currentUser.username;
-        });
+ // Member ko sirf apna transaction dikhe
+if(currentUser && currentUser.role === "MB"){
+alert(
+"Role: " + currentUser.role +
+"\nCode: " + (currentUser.code || "N/A") +
+"\nMemberId: " + (currentUser.memberId || "N/A") +
+"\nUsername: " + (currentUser.username || "N/A") +
+"\nName: " + (currentUser.name || "N/A")
+);
+    var memberObjForUser = db.members.find(function(m){
 
-        var myMemberId = memberObjForUser ? memberObjForUser.memberId : currentUser.code;
-        var myMemberName = memberObjForUser ? memberObjForUser.name : currentUser.name;
+        return (
+            m.memberId === currentUser.code ||
+            m.memberId === currentUser.memberId ||
+            m.memberId === currentUser.username ||
+            m.name === currentUser.name
+        );
 
-        if(t.member !== myMemberId && t.member !== myMemberName){
-            return false;
-        }
+    });
+
+    var myMemberId = memberObjForUser
+        ? memberObjForUser.memberId
+        : (currentUser.memberId || currentUser.code || currentUser.username);
+
+    var myMemberName = memberObjForUser
+        ? memberObjForUser.name
+        : currentUser.name;
+
+    if(
+        t.member !== myMemberId &&
+        t.member !== myMemberName
+    ){
+        return false;
     }
+}
 
     if(!searchFilter){
         return true;
@@ -1926,12 +2074,63 @@ list.appendChild(div);
 
 }
 function getDistributionAvailableBalance(){
-var interest = db.transactions.filter(function(t){ return t.type === "EMI Collect"; }).reduce(function(sum,t){ return sum + Number(t.interest || 0); }, 0);
-var otherIn = db.transactions.filter(function(t){ return t.type === "Other IN"; }).reduce(function(sum,t){ return sum + Number(t.amount || 0); }, 0);
-var otherOut = db.transactions.filter(function(t){ return t.type === "Other OUT"; }).reduce(function(sum,t){ return sum + Number(t.amount || 0); }, 0);
-var totalDistributed = db.transactions.filter(function(t){ return t.type === "Distribute"; }).reduce(function(sum,t){ return sum + Number(t.amount || 0); }, 0);
-var balance = interest + otherIn - otherOut - totalDistributed;
-return Math.max(0, balance);
+
+    var branch = "";
+
+    if(currentUser && currentUser.role === "BR"){
+        branch = currentUser.branch;
+    }
+
+    if(currentUser && currentUser.role === "AD"){
+        var branchSel = document.getElementById("distributeBranchSelect");
+        branch = branchSel ? branchSel.value : "";
+    }
+
+    if(!branch) return 0;
+
+    var interest = db.transactions
+        .filter(function(t){
+            return t.type === "EMI Collect" &&
+                   t.branch === branch;
+        })
+        .reduce(function(sum,t){
+            return sum + Number(t.interest || 0);
+        },0);
+
+    var otherIn = db.transactions
+        .filter(function(t){
+            return t.type === "Other IN" &&
+                   t.branch === branch;
+        })
+        .reduce(function(sum,t){
+            return sum + Number(t.amount || 0);
+        },0);
+
+    var otherOut = db.transactions
+        .filter(function(t){
+            return t.type === "Other OUT" &&
+                   t.branch === branch;
+        })
+        .reduce(function(sum,t){
+            return sum + Number(t.amount || 0);
+        },0);
+
+    var totalDistributed = db.transactions
+        .filter(function(t){
+            return t.type === "Distribute" &&
+                   t.branch === branch;
+        })
+        .reduce(function(sum,t){
+            return sum + Number(t.amount || 0);
+        },0);
+
+    var balance =
+        interest +
+        otherIn -
+        otherOut -
+        totalDistributed;
+
+    return Math.max(0,balance);
 }
 function setupDistributePageUI(){ 
     var container = document.getElementById("adminBranchSelectContainer"); 
@@ -2052,9 +2251,16 @@ function calculateSelectedMemberDistribution(){
     var memberIdForCheck = memberObj.memberId;          
     
     // Check karein ki is member ko is saal distribution mil chuka hai ya nahi (ID ya Name dono se)
-    var alreadyDistributed = db.transactions.some(function(t){          
-        return t.type === "Distribute" && t.branch === branch && (t.memberId === memberIdForCheck || t.member === memberNameForCheck) && t.year === currentYear;      
-    });           
+    var alreadyDistributed = db.transactions.some(function(t){
+    return t.type === "Distribute" &&
+           t.branch === branch &&
+           (
+               t.member === memberIdForCheck ||
+               t.member === memberNameForCheck ||
+               t.memberId === memberIdForCheck
+           ) &&
+           t.year === currentYear;
+});      
 
     if(alreadyDistributed){          
         info.style.display = "block";          
@@ -2064,18 +2270,63 @@ function calculateSelectedMemberDistribution(){
 
     var totalDistributedSoFar = db.transactions          .filter(function(t){ return t.type === "Distribute" && t.branch === branch && t.year === currentYear; })          .reduce(function(sum, t){ return sum + Number(t.amount || 0); }, 0);               
 
-    var initialTotalEarnings = db.transactions.filter(function(t){ return t.type === "EMI Collect"; }).reduce(function(sum,t){ return sum + Number(t.interest || 0); }, 0)          + db.transactions.filter(function(t){ return t.type === "Other IN"; }).reduce(function(sum,t){ return sum + Number(t.amount || 0); }, 0)          - db.transactions.filter(function(t){ return t.type === "Other OUT"; }).reduce(function(sum,t){ return sum + Number(t.amount || 0); }, 0);               
+    var initialTotalEarnings =
+    db.transactions
+    .filter(function(t){
+        return t.type === "EMI Collect" &&
+               t.branch === branch;
+    })
+    .reduce(function(sum,t){
+        return sum + Number(t.interest || 0);
+    }, 0)
+    +
+    db.transactions
+    .filter(function(t){
+        return t.type === "Other IN" &&
+               t.branch === branch;
+    })
+    .reduce(function(sum,t){
+        return sum + Number(t.amount || 0);
+    }, 0)
+    -
+    db.transactions
+    .filter(function(t){
+        return t.type === "Other OUT" &&
+               t.branch === branch;
+    })
+    .reduce(function(sum,t){
+        return sum + Number(t.amount || 0);
+    }, 0);               
 
     var currentRemainingPool = Math.max(0, initialTotalEarnings - totalDistributedSoFar);      
     var allBranchMembers = db.members.filter(function(m){ return m.branch === branch; });      
     var remainingTotalSavings = 0;           
 
     allBranchMembers.forEach(function(m){          
-        var isDistributed = db.transactions.some(function(t){              
-            return t.type === "Distribute" && t.branch === branch && (t.memberId === m.memberId || t.member === m.name) && t.year === currentYear;          
-        });          
+                var isDistributed = db.transactions.some(function(t){
+    return t.type === "Distribute" &&
+           t.branch === branch &&
+           (
+               t.member === m.memberId ||
+               t.member === m.name ||
+               t.memberId === m.memberId
+           ) &&
+           t.year === currentYear;
+});      
         if(!isDistributed){              
-            var mSav = db.transactions                  .filter(function(t){ return t.type === "Savings" && t.branch === branch && (t.memberId === m.memberId || t.member === m.name); })                  .reduce(function(sum, t){ return sum + Number(t.amount || 0); }, 0);              
+            var mSav = db.transactions
+    .filter(function(t){
+        return t.type === "Savings" &&
+               t.branch === branch &&
+               (
+                   t.member === m.memberId ||
+                   t.member === m.name ||
+                   t.memberId === m.memberId
+               );
+    })
+    .reduce(function(sum, t){
+        return sum + Number(t.amount || 0);
+    }, 0);              
             remainingTotalSavings += mSav;          }      });           
 
     if(currentRemainingPool <= 0 || remainingTotalSavings <= 0){          
@@ -2084,7 +2335,18 @@ function calculateSelectedMemberDistribution(){
         return;      }           
 
     // Member ki savings calculate karte waqt bhi ID aur Name dono match karein
-    var memberSavings = db.transactions          .filter(function(t){ return (t.type === "Savings" && t.branch === branch && (t.memberId === memberIdForCheck || t.member === memberNameForCheck)); })          .reduce(function(sum,t){ return sum + Number(t.amount || 0); }, 0);               
+    var memberSavings = db.transactions
+    .filter(function(t){
+        return t.type === "Savings" &&
+               (
+                   t.member === memberIdForCheck ||
+                   t.member === memberNameForCheck ||
+                   t.memberId === memberIdForCheck
+               );
+    })
+    .reduce(function(sum,t){
+        return sum + Number(t.amount || 0);
+    }, 0);
 
     if(memberSavings <= 0){          
         info.style.display = "block";          
