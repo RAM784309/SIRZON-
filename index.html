@@ -2680,21 +2680,19 @@ const userData = userDoc.data();
       password
     );
 
-    return {
-  id: result.user.uid,
-  name: userData.name || "User",
-  username: userData.code || username,
-  role: userData.role || "",
-  code: userData.code || username,
-  email: userData.email || "",
-  branch: userData.branch || "",
-  branchCode: userData.branchCode || "",
-  branchId: userData.branchId || "",
-  joinDate: userData.joinDate || ""
-};
-
+        return {
+      id: result.user.uid,
+      name: userData.name || "User",
+      username: userData.code || username,
+      role: userData.role || "",
+      code: userData.code || username,
+      branch: userData.branch || "",
+      branchCode: userData.branchCode || "",
+      branchId: userData.branchId || ""
+    };
   } catch (error) {
-    alert("❌ Login Error: " + error.message);
+    console.error("❌ Firebase login error:", error);
+    alert("Login Error: " + error.message);
     return null;
   }
 };
