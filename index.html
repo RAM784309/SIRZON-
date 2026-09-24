@@ -1270,7 +1270,6 @@ await window.firebaseCreateManager(
   branchCode,
   branchId
 );
-alert("Firebase Manager creation done");
 db.users.push({
 id:Date.now() + 1,
 name:manager,
@@ -1316,9 +1315,6 @@ async function addMember(){
   var memberId = Date.now();
   var branchObj = db.branches.find(function(b){ return b.name === branch; });
   var jDate = formatDateDDMMYYYY();
-
-  alert("Creating Member: " + memberCode);
-  
   if(window.firebaseCreateMember){
     await window.firebaseCreateMember(
       memberCode,
