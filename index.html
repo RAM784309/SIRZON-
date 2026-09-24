@@ -113,15 +113,7 @@ button{ border:0; border-radius:10px; padding:13px 18px; cursor:pointer; }
 <label>Password</label>
 <input id="loginPass" type="password" placeholder="Enter password">
 <button class="login-btn" onclick="login()"> LOGIN </button>
-
-<button type="button" style="display:block;width:100%;margin-top:12px;padding:12px;background:#198754;color:white;border:0;border-radius:8px;font-size:15px;" onclick="testFirebase()">🔥 Test Firebase</button>
-
 <div class="register-link" onclick="showRegister()"> Create New Account </div> </div>
-<button type="button"
-onclick="firebaseLoginTest()"
-style="display:block;width:100%;margin-top:10px;padding:12px;background:#198754;color:white;border:0;border-radius:8px;">
-🔐 Test Firebase Login
-</button>
 <div id="registerForm" style="display:none">
 <label>Full Name</label>
 <input id="regName" type="text" placeholder="Enter name">
@@ -615,15 +607,6 @@ document.getElementById("regUser").value = "";
 document.getElementById("regPass").value = "";
 showLogin();
 }
-function formatDateDDMMYYYY(date){
-    date = date || new Date();
-
-    var dd = String(date.getDate()).padStart(2, "0");
-    var mm = String(date.getMonth() + 1).padStart(2, "0");
-    var yyyy = date.getFullYear();
-
-    return dd + "-" + mm + "-" + yyyy;
-}
 async function login(){
   var username = document.getElementById("loginUser").value.trim();
   var password = document.getElementById("loginPass").value;
@@ -664,6 +647,15 @@ document.getElementById("accountRole").innerText = user.role === "AD" ? "Admin" 
 applyRoleUIRestrictions(user);
 openPage('homePage');
 refreshAll();
+}
+function formatDateDDMMYYYY(date){
+    date = date || new Date();
+
+    var dd = String(date.getDate()).padStart(2, "0");
+    var mm = String(date.getMonth() + 1).padStart(2, "0");
+    var yyyy = date.getFullYear();
+
+    return dd + "-" + mm + "-" + yyyy;
 }
 function applyRoleUIRestrictions(user){
 var bottomNav = document.getElementById("bottomNav");
@@ -1132,7 +1124,7 @@ branch:branch,
 member:member,
 duration:durationStr,
 amount:amount,
-date:new Date().toLocaleString()
+joinDate: formatDateDDMMYYYY()
 });
 db.loans.push({
 id:loanId,
@@ -1301,76 +1293,79 @@ refreshAll();
 alert("Branch created successfully!\n\nManager Code: " + managerCode + "\nPassword: " + managerPassword);
 }
 async function addMember(){ 
-var branch = document.getElementById("memberBranch").value;
-var name = document.getElementById("memberName").value.trim();
-var mobile = document.getElementById("memberMobile").value.trim();
-var address = document.getElementById("memberAddress").value.trim();
-var password = document.getElementById("memberPassword").value;
-if(!branch || !name || !mobile || !address || !password){
-alert("Please fill all fields");
-return;
-}
-var memberNumber = 1;
+  var branch = document.getElementById("memberBranch").value;
+  var name = document.getElementById("memberName").value.trim();
+  var mobile = document.getElementById("memberMobile").value.trim();
+  var address = document.getElementById("memberAddress").value.trim();
+  var password = document.getElementById("memberPassword").value;
+  
+  if(!branch || !name || !mobile || !address || !password){
+    alert("Please fill all fields");
+    return;
+  }
+  
+  var memberNumber = 1;
+  while(
+    db.users.some(function(u){ return u.username === "MB" + fourDigit(memberNumber); }) ||
+    db.members.some(function(m){ return m.memberId === "MB" + fourDigit(memberNumber); })
+  ){
+    memberNumber++;
+  }
 
-while(
-  db.users.some(function(u){
-    return u.username === "MB" + fourDigit(memberNumber);
-  }) ||
-  db.members.some(function(m){
-    return m.memberId === "MB" + fourDigit(memberNumber);
-  })
-){
-  memberNumber++;
-}
+  var memberCode = "MB" + fourDigit(memberNumber);
+  var memberId = Date.now();
+  var branchObj = db.branches.find(function(b){ return b.name === branch; });
+  var jDate = formatDateDDMMYYYY();
 
-var memberCode = "MB" + fourDigit(memberNumber);
-var memberCode = "MB" + fourDigit(memberNumber);
-var memberId = Date.now();
-var branchObj = db.branches.find(function(b){ return b.name === branch; });
-alert("Creating Member: " + memberCode);
-await window.firebaseCreateMember(
-  memberCode,
-  password,
-  name,
-  branch,
-  branchObj ? branchObj.code : "",
-  branchObj ? branchObj.id : "",
-  mobile,
-  address,
-  joinDate: formatDateDDMMYYYY()
-);
-alert("Firebase Member Created: " + memberCode);
-db.members.push({
-id:memberId,
-branch:branch,
-name:name,
-mobile:mobile,
-address:address,
-memberId:memberCode,
-branchCode: branchObj ? branchObj.code : "",
-managerCode: branchObj ? branchObj.managerCode : "",
-joinDate: new Date().toLocaleDateString()
-});
-db.users.push({
-id:Date.now() + 1,
-name:name,
-username:memberCode,
-password:password,
-role:"MB",
-branch:branch,
-memberId:memberCode,
-memberRecordId:memberId,
-branchCode: branchObj ? branchObj.code : "",
-joinDate: formatDateDDMMYYYY(),
-code:memberCode
-});
-saveDB();
-document.getElementById("memberName").value = "";
-document.getElementById("memberMobile").value = "";
-document.getElementById("memberAddress").value = "";
-document.getElementById("memberPassword").value = "";
-refreshAll();
-alert("Member added successfully!\n\nMember Code: " + memberCode + "\nPassword: " + password);
+  alert("Creating Member: " + memberCode);
+  
+  if(window.firebaseCreateMember){
+    await window.firebaseCreateMember(
+      memberCode,
+      password,
+      name,
+      branch,
+      branchObj ? branchObj.code : "",
+      branchObj ? branchObj.id : "",
+      mobile,
+      address,
+      jDate
+    );
+  }
+  
+  db.members.push({
+    id: memberId,
+    branch: branch,
+    name: name,
+    mobile: mobile,
+    address: address,
+    memberId: memberCode,
+    branchCode: branchObj ? branchObj.code : "",
+    managerCode: branchObj ? branchObj.managerCode : "",
+    joinDate: jDate
+  });
+  
+  db.users.push({
+    id: Date.now() + 1,
+    name: name,
+    username: memberCode,
+    password: password,
+    role: "MB",
+    branch: branch,
+    memberId: memberCode,
+    memberRecordId: memberId,
+    branchCode: branchObj ? branchObj.code : "",
+    joinDate: jDate,
+    code: memberCode
+  });
+  
+  saveDB();
+  document.getElementById("memberName").value = "";
+  document.getElementById("memberMobile").value = "";
+  document.getElementById("memberAddress").value = "";
+  document.getElementById("memberPassword").value = "";
+  refreshAll();
+  alert("Member added successfully!\n\nMember Code: " + memberCode + "\nPassword: " + password);
 }
 function setupLongPress(element, onDelete){
 var timer = null;
@@ -2443,7 +2438,7 @@ function addDistribute(){
         amount: amount,         
         year: currentYear,         
         description: desc || ("Yearly Profit Distribution - " + currentYear),         
-        date: new joinDate: formatDateDDMMYYYY()     });      
+        joinDate: formatDateDDMMYYYY()     });      
     
     saveDB();     
     alert("Distribution successfully saved!");     
@@ -2477,15 +2472,17 @@ filterDistributeMembers();
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
   import {
-  getFirestore,
-  doc,
-  setDoc,
-  getDoc,
-  collection,
-  query,
-  where,
-  getDocs
-} from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
+    getFirestore,
+    doc,
+    setDoc,
+    getDoc,
+    collection,
+    query,
+    where,
+    getDocs
+  } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
+  
+  // Add your firebase initialization configuration here if needed
 import {
   getAuth,
   createUserWithEmailAndPassword,
@@ -2680,19 +2677,21 @@ const userData = userDoc.data();
       password
     );
 
-        return {
-      id: result.user.uid,
-      name: userData.name || "User",
-      username: userData.code || username,
-      role: userData.role || "",
-      code: userData.code || username,
-      branch: userData.branch || "",
-      branchCode: userData.branchCode || "",
-      branchId: userData.branchId || ""
-    };
+    return {
+  id: result.user.uid,
+  name: userData.name || "User",
+  username: userData.code || username,
+  role: userData.role || "",
+  code: userData.code || username,
+  email: userData.email || "",
+  branch: userData.branch || "",
+  branchCode: userData.branchCode || "",
+  branchId: userData.branchId || "",
+  joinDate: userData.joinDate || ""
+};
+
   } catch (error) {
-    console.error("❌ Firebase login error:", error);
-    alert("Login Error: " + error.message);
+    alert("❌ Login Error: " + error.message);
     return null;
   }
 };
@@ -2708,6 +2707,19 @@ const sirzonDatabaseRef = doc(
   "database"
 );
 
+// ===============================
+// INITIALIZE SIRZON DATABASE
+// ===============================
+
+if (!window.db) {
+  window.db = {
+    users: [],
+    branches: [],
+    members: [],
+    transactions: [],
+    loans: []
+  };
+}
 // Firestore se SIRZON data load
 window.firebaseDBReady = (async function(){
 
