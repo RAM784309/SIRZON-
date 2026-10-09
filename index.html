@@ -106,22 +106,22 @@ button{ border:0; border-radius:10px; padding:13px 18px; cursor:pointer; }
 <div id="loginPage" class="login-page">
 <div class="login-box">
 <div class="logo">SIRZON</div>
-<div class="subtitle"> Finance Management System </div>
 <div id="loginForm">
-<label>Mobile / Username</label>
-<input id="loginUser" type="text" placeholder="Enter username">
+<label>Mobile / Usercode</label>
+<input id="loginUser" type="text" placeholder="Enter usercode">
 <label>Password</label>
 <input id="loginPass" type="password" placeholder="Enter password">
 <button class="login-btn" onclick="login()"> LOGIN </button>
-<div class="register-link" onclick="showRegister()"> Create New Account </div> </div>
+<div class="register-link" onclick="showRegister()">Create New Branch</div> </div>
 <div id="registerForm" style="display:none">
-<label>Full Name</label>
-<input id="regName" type="text" placeholder="Enter name">
-<label>Username</label>
-<input id="regUser" type="text" placeholder="Create username">
-<label>Password</label>
-<input id="regPass" type="password" placeholder="Create password">
-<button class="login-btn" onclick="register()"> REGISTER </button>
+<div class="form-box active" style="margin-top:15px">
+<div class="form-group"><label>Branch Name</label><input id="branchName" type="text" placeholder="Enter branch name"></div>
+<div class="form-group"><label>Manager Name</label><input id="branchManager" type="text" placeholder="Enter manager name"></div>
+<div class="form-group"><label>Mobile Number</label><input id="branchMobile" type="tel" placeholder="Enter mobile number"></div>
+<div class="form-group"><label>Branch Address</label><input id="branchAddress" type="text" placeholder="Enter branch address"></div>
+<div class="form-group"><label>Manager Password</label><input id="branchManagerPassword" type="password" placeholder="Create manager password"></div>
+</div>
+<button class="login-btn" onclick="register()"> REGISTER BRANCH</button>
 <div class="register-link" onclick="showLogin()"> Already have an account? Login </div>
 </div>
 </div>
@@ -294,8 +294,18 @@ button{ border:0; border-radius:10px; padding:13px 18px; cursor:pointer; }
 <label>Principal Amount</label>
 <input id="emiPrincipal" type="number" placeholder="Principal amount" oninput="calculateEmiTotal()">
 <label>Interest Amount</label>
-<input id="emiInterest" type="number" placeholder="Interest amount" oninput="calculateEmiTotal()">
-<p style="margin-bottom:10px;font-weight:bold;color:#198754;"> Total Amount: <span id="emiTotalDisplay"> ₹0 </span> </p>
+<input
+    type="number"
+    id="emiInterest"
+    readonly
+    tabindex="-1"
+    style="background:#f1f1f1;cursor:not-allowed;"
+>
+
+<p style="margin-bottom:10px;font-weight:bold;color:#198754;">
+    Total Amount:
+    <span id="emiTotalDisplay">₹0</span>
+</p>
 <button class="login-btn" onclick="addEmiTrans()"> Submit EMI </button>
 </div>
 <!-- OTHERS FORM -->
@@ -372,9 +382,9 @@ Submit Others
 <div class="form-box active" style="margin-top:15px">
 <div class="form-group"><label>Branch Name</label><input id="branchName" type="text" placeholder="Enter branch name"></div>
 <div class="form-group"><label>Manager Name</label><input id="branchManager" type="text" placeholder="Enter manager name"></div>
-<div class="form-group"><label>Manager Password</label><input id="branchManagerPassword" type="password" placeholder="Create manager password"></div>
 <div class="form-group"><label>Mobile Number</label><input id="branchMobile" type="tel" placeholder="Enter mobile number"></div>
 <div class="form-group"><label>Branch Address</label><input id="branchAddress" type="text" placeholder="Enter branch address"></div>
+<div class="form-group"><label>Manager Password</label><input id="branchManagerPassword" type="password" placeholder="Create manager password"></div>
 <button class="login-btn" onclick="addBranch()"> ADD BRANCH </button>
 </div>
 <div style="margin-top:15px;">
@@ -393,7 +403,7 @@ Submit Others
 <div class="form-group"><label>Select Branch</label><select id="memberBranch"><option value=""> Select Branch </option></select></div>
 <div class="form-group"><label>Member Name</label><input id="memberName" type="text" placeholder="Enter member name"></div>
 <div class="form-group"><label>Mobile Number</label><input id="memberMobile" type="tel" placeholder="Enter mobile number"></div>
-<div class="form-group"><label>Address</label><input id="memberAddress" type="text" placeholder="Enter address"></div>
+<div class="form-group"><label>Member Address</label><input id="memberAddress" type="text" placeholder="Enter address"></div>
 <div class="form-group"><label>Member Password</label><input id="memberPassword" type="password" placeholder="Create member password"></div>
 <button class="login-btn" onclick="addMember()"> ADD MEMBER </button>
 </div>
@@ -607,6 +617,98 @@ document.getElementById("regUser").value = "";
 document.getElementById("regPass").value = "";
 showLogin();
 }
+async function register() {
+
+    const branchName = document.getElementById("branchName").value.trim();
+    const managerName = document.getElementById("branchManager").value.trim();
+    const mobile = document.getElementById("branchMobile").value.trim();
+    const address = document.getElementById("branchAddress").value.trim();
+    const password = document.getElementById("branchManagerPassword").value;
+
+    if (!branchName || !managerName || !mobile || !address || !password) {
+        alert("Please fill all fields.");
+        return;
+    }
+
+    if (mobile.length !== 10 || !/^[0-9]+$/.test(mobile)) {
+        alert("Please enter a valid 10-digit mobile number.");
+        return;
+    }
+
+    if (password.length < 6) {
+        alert("Manager password must be at least 6 characters.");
+        return;
+    }
+
+    try {
+
+        const managerCode = await generateManagerCode();
+        const branchCode = await generateBranchCode();
+
+        const result = await window.firebaseCreateManager(
+            managerCode,
+            password,
+            managerName,
+            branchName,
+            branchCode,
+            branchCode
+        );
+
+        if (!result || !result.success) {
+            throw new Error(
+                result?.message || "Manager account creation failed."
+            );
+        }
+
+        const branchData = {
+            branchCode: branchCode,
+            branchName: branchName,
+            managerCode: managerCode,
+            managerName: managerName,
+            mobile: mobile,
+            address: address,
+            status: "Active",
+            createdAt: formatDateDDMMYYYY()
+        };
+
+        if (typeof window.firebaseSaveBranch !== "function") {
+            throw new Error("Firebase branch save function is not available.");
+        }
+
+        await window.firebaseSaveBranch(branchCode, branchData);
+
+        alert(
+            "Branch Created Successfully!\n\n" +
+            "Branch Code: " + branchCode + "\n" +
+            "Manager Code: " + managerCode + "\n" +
+            "Manager Name: " + managerName
+        );
+
+        document.getElementById("branchName").value = "";
+        document.getElementById("branchManager").value = "";
+        document.getElementById("branchMobile").value = "";
+        document.getElementById("branchAddress").value = "";
+        document.getElementById("branchManagerPassword").value = "";
+
+        showLogin();
+
+    } catch (error) {
+
+        console.error("REGISTER BRANCH ERROR:", error);
+
+        if (error.code === "auth/email-already-in-use") {
+            alert(
+                "This Manager Code is already in use.\n" +
+                "Please try again."
+            );
+        } else {
+            alert(
+                "Branch registration failed.\n\n" +
+                (error.message || error)
+            );
+        }
+    }
+}
 async function login(){
   var username = document.getElementById("loginUser").value.trim();
   var password = document.getElementById("loginPass").value;
@@ -656,6 +758,24 @@ function formatDateDDMMYYYY(date){
     var yyyy = date.getFullYear();
 
     return dd + "-" + mm + "-" + yyyy;
+}
+function formatDateTime() {
+  var now = new Date();
+  
+  // Date format (DD/MM/YYYY)
+  var day = String(now.getDate()).padStart(2, '0');
+  var month = String(now.getMonth() + 1).padStart(2, '0');
+  var year = now.getFullYear();
+  
+  // Time format (12-hour AM/PM format)
+  var hours = now.getHours();
+  var minutes = String(now.getMinutes()).padStart(2, '0');
+  var ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  hours = hours ? hours : 12; // 0 को 12 करने के लिए
+  var strHours = String(hours).padStart(2, '0');
+  
+  return `${day}/${month}/${year} ${strHours}:${minutes} ${ampm}`;
 }
 function applyRoleUIRestrictions(user){
 var bottomNav = document.getElementById("bottomNav");
@@ -923,53 +1043,903 @@ options[i].style.display = "none";
 }
 /* ===================================================== CALCULATIONS ===================================================== */
 function calculateEmiTotal(){
-var p = Number(document.getElementById("emiPrincipal").value) || 0;
-var i = Number(document.getElementById("emiInterest").value) || 0;
-var total = p + i;
-document.getElementById("emiTotalDisplay").innerText = "₹" + total.toLocaleString("en-IN");
+
+    var p =
+        Number(
+            document.getElementById("emiPrincipal").value
+        ) || 0;
+
+    var i =
+        Number(
+            document.getElementById("emiInterest").value
+        ) || 0;
+
+    var total = p + i;
+
+    document.getElementById(
+        "emiTotalDisplay"
+    ).innerText =
+        "₹" + total.toLocaleString("en-IN");
 }
+
+
+/* =========================================
+   LOAN EMI PREVIEW
+   Interest will be calculated on
+   remaining principal
+========================================= */
+
 function calculateLoanEmiPreview(){
-var amt = Number(document.getElementById("amtLoan").value) || 0;
-var rate = Number(document.getElementById("loanInterestRate").value) || 0;
-var val = Number(document.getElementById("loanDurationVal").value) || 1;
-if(val <= 0){ val = 1; }
-var totalInterest = Math.round(amt * (rate / 100));
-var totalPayable = amt + totalInterest;
-var estEmi = Math.round(totalPayable / val);
-document.getElementById("loanEmiPreviewBox").innerText = "Total Payable: ₹" + totalPayable.toLocaleString("en-IN") + " | Installment: ₹" + estEmi.toLocaleString("en-IN");
+
+    var amt =
+        Number(document.getElementById("amtLoan").value) || 0;
+
+    var rate =
+        Number(document.getElementById("loanInterestRate").value) || 0;
+
+    var val =
+        Number(document.getElementById("loanDurationVal").value) || 1;
+
+    if(val <= 0){
+        val = 1;
+    }
+
+    if(amt <= 0){
+
+        document.getElementById("loanEmiPreviewBox").innerText =
+            "Enter loan amount";
+
+        return;
+    }
+
+    /* Principal installment */
+    var principalPerInstallment =
+        Math.ceil(amt / val);
+
+    /* First period interest */
+    var firstInterest =
+        Math.round(amt * (rate / 100));
+
+    var firstInstallment =
+        principalPerInstallment + firstInterest;
+
+    document.getElementById("loanEmiPreviewBox").innerText =
+        "Principal: ₹" +
+        principalPerInstallment.toLocaleString("en-IN") +
+
+        " | First Interest: ₹" +
+        firstInterest.toLocaleString("en-IN") +
+
+        " | First Installment: ₹" +
+        firstInstallment.toLocaleString("en-IN") +
+
+        " | Interest is calculated on remaining principal";
 }
+
+
+/* =========================================
+   LOAD MEMBER ACTIVE LOAN
+========================================= */
+
 function loadMemberActiveLoan(){
-var memberName = document.getElementById("emiMember").value;
-var infoBox = document.getElementById("memberLoanInfo");
-if(!memberName){
-infoBox.style.display = "none";
-return;
+
+    var memberName =
+        document.getElementById("emiMember").value;
+
+    var infoBox =
+        document.getElementById("memberLoanInfo");
+
+    if(!memberName){
+
+        infoBox.style.display = "none";
+
+        return;
+    }
+
+
+    var loan =
+        db.loans.find(function(l){
+
+            return (
+                l.member === memberName &&
+                l.status === "Active"
+            );
+
+        });
+
+
+    if(!loan){
+
+        infoBox.style.display = "block";
+
+        infoBox.innerHTML =
+            "No active loan found for this member.";
+
+        document.getElementById("emiPrincipal").value = "";
+        document.getElementById("emiInterest").value = "";
+
+        calculateEmiTotal();
+
+        return;
+    }
+
+
+    /* =================================
+       TOTAL PRINCIPAL ALREADY PAID
+    ================================= */
+
+    var totalPaidPrincipal =
+        db.transactions
+        .filter(function(t){
+
+            return (
+                t.type === "EMI Collect" &&
+                t.member === memberName &&
+                t.loanId === loan.id
+            );
+
+        })
+        .reduce(function(sum,t){
+
+            return sum +
+                Number(t.principal || 0);
+
+        },0);
+
+
+    /* =================================
+       REMAINING PRINCIPAL
+    ================================= */
+
+    var remainingPrincipal =
+        Math.max(
+            0,
+            Number(loan.amount || 0) -
+            totalPaidPrincipal
+        );
+
+
+    /* =================================
+       INTEREST ON REMAINING PRINCIPAL
+    ================================= */
+
+    var interestRate =
+        Number(loan.interestRate || 0);
+
+    var currentInterest =
+        Math.round(
+            remainingPrincipal *
+            (interestRate / 100)
+        );
+
+
+    /* =================================
+       ORIGINAL DURATION
+    ================================= */
+
+    var valParts =
+        String(loan.duration || "1")
+        .split(" ");
+
+    var count =
+        Number(valParts[0]) || 1;
+
+
+    /* =================================
+       SUGGESTED PRINCIPAL INSTALLMENT
+    ================================= */
+
+    var principalPerInstallment =
+        Math.ceil(
+            Number(loan.amount || 0) /
+            count
+        );
+
+
+    principalPerInstallment =
+        Math.min(
+            principalPerInstallment,
+            remainingPrincipal
+        );
+
+
+    var suggestedTotal =
+        principalPerInstallment +
+        currentInterest;
+
+
+    /* =================================
+       DISPLAY
+    ================================= */
+
+    infoBox.style.display = "block";
+
+    infoBox.innerHTML =
+
+        "<b>Loan Principal:</b> ₹" +
+        Number(loan.amount || 0)
+        .toLocaleString("en-IN") +
+
+        " | <b>Remaining Principal:</b> ₹" +
+        remainingPrincipal
+        .toLocaleString("en-IN") +
+
+        "<br>" +
+
+        "<b>Current Interest:</b> ₹" +
+        currentInterest
+        .toLocaleString("en-IN") +
+
+        " (" + interestRate + "%)" +
+
+        "<br>" +
+
+        "<b>Suggested Installment:</b> ₹" +
+        suggestedTotal
+        .toLocaleString("en-IN") +
+
+        " (P: ₹" +
+        principalPerInstallment
+        .toLocaleString("en-IN") +
+
+        " + I: ₹" +
+        currentInterest
+        .toLocaleString("en-IN") +
+        ")";
+
+
+    /* =================================
+       AUTO FILL
+    ================================= */
+
+    document.getElementById("emiPrincipal").value =
+        principalPerInstallment;
+
+    document.getElementById("emiInterest").value =
+        currentInterest;
+
+    calculateEmiTotal();
 }
-var loan = db.loans.find(function(l){
-return (l.member === memberName && l.status === "Active");
-});
-if(loan){
-var totalPaidPrincipal = db.transactions.filter(function(t){
-return (t.type === "EMI Collect" && t.member === memberName && t.loanId === loan.id);
-}).reduce(function(sum,t){
-return sum + Number(t.principal || 0);
-}, 0);
-var remainingBalance = loan.totalPayable - totalPaidPrincipal;
-var valParts = String(loan.duration).split(" ");
-var count = Number(valParts[0]) || 1;
-var principalPerInstallment = Math.round(loan.amount / count);
-var interestPerInstallment = Math.round((loan.totalPayable - loan.amount) / count);
-var perInstallment = principalPerInstallment + interestPerInstallment;
-infoBox.style.display = "block";
-infoBox.innerHTML = `<b>Loan Total:</b> ₹${loan.totalPayable.toLocaleString("en-IN")} | <b>Remaining Balance:</b> ₹${remainingBalance.toLocaleString("en-IN")}<br><b>Suggested Installment:</b> ₹${perInstallment.toLocaleString("en-IN")} (P: ₹${principalPerInstallment} + I: ₹${interestPerInstallment})`;
-var remainingPrincipal = Math.max(0, loan.amount - totalPaidPrincipal);
-document.getElementById("emiPrincipal").value = Math.min(principalPerInstallment, remainingPrincipal);
-document.getElementById("emiInterest").value = interestPerInstallment;
-calculateEmiTotal();
-} else {
-infoBox.style.display = "block";
-infoBox.innerHTML = "No active loan found for this member.";
+
+
+/* =========================================
+   ADD NEW LOAN
+   NO FIXED TOTAL INTEREST
+========================================= */
+
+function addNewLoanTrans(){
+
+    var branch =
+        document.getElementById("loanBranch").value;
+
+    var member =
+        document.getElementById("loanMemberSel").value;
+
+    var amount =
+        Number(
+            document.getElementById("amtLoan").value
+        );
+
+    var rate =
+        Number(
+            document.getElementById("loanInterestRate").value
+        ) || 0;
+
+    var durationType =
+        document.getElementById("loanDurationType").value;
+
+    var durationVal =
+        document.getElementById("loanDurationVal").value;
+
+
+    if(
+        !branch ||
+        !member ||
+        amount <= 0 ||
+        !durationVal
+    ){
+
+        alert(
+            "Please fill all loan details properly"
+        );
+
+        return;
+    }
+
+
+    /* =================================
+       CHECK BRANCH
+    ================================= */
+
+    var branchObj =
+        db.branches.find(function(b){
+
+            return b.name === branch;
+
+        });
+
+
+    if(
+        branchObj &&
+        branchObj.status === "Closed"
+    ){
+
+        alert(
+            "This branch is closed. New Loan is not allowed."
+        );
+
+        return;
+    }
+
+
+    /* =================================
+       AVAILABLE SAVINGS
+    ================================= */
+
+    var savingsAmount =
+        db.transactions
+        .filter(function(t){
+
+            return (
+                t.type === "Savings" &&
+                t.branch === branch
+            );
+
+        })
+        .reduce(function(sum,t){
+
+            return sum +
+                Number(t.amount || 0);
+
+        },0);
+
+
+    var principalEMI =
+        db.transactions
+        .filter(function(t){
+
+            return (
+                t.type === "EMI Collect" &&
+                t.branch === branch
+            );
+
+        })
+        .reduce(function(sum,t){
+
+            return sum +
+                Number(t.principal || 0);
+
+        },0);
+
+
+    var existingNewLoans =
+        db.transactions
+        .filter(function(t){
+
+            return (
+                t.type === "New Loan" &&
+                t.branch === branch
+            );
+
+        })
+        .reduce(function(sum,t){
+
+            return sum +
+                Number(t.amount || 0);
+
+        },0);
+
+
+    var availableSavings =
+        savingsAmount +
+        principalEMI -
+        existingNewLoans;
+
+
+    if(amount > availableSavings){
+
+        alert(
+            "Loan cannot be issued!\n\n" +
+
+            "Available Savings: ₹" +
+            availableSavings
+            .toLocaleString("en-IN") +
+
+            "\nLoan Amount: ₹" +
+            amount
+            .toLocaleString("en-IN")
+        );
+
+        return;
+    }
+
+
+    /* =================================
+       IMPORTANT:
+       NO totalInterest
+       NO totalPayable
+    ================================= */
+
+    var durationStr =
+        durationVal + " " + durationType;
+
+    var loanId =
+        Date.now();
+
+
+    /* =================================
+       TRANSACTION
+    ================================= */
+
+  db.transactions.push({
+        id: loanId,
+        type: "New Loan",
+        branch: branch,
+        member: member,
+        duration: durationStr,
+        amount: amount,
+        interestRate: rate,
+        date: formatDateTime(),       // <-- यह लाइन जोड़ी गई है (तारीख और समय के लिए)
+        joinDate: formatDateTime()
+    });
+
+
+    /* =================================
+       LOAN
+    ================================= */
+
+    db.loans.push({
+        id: loanId,
+        member: member,
+        branch: branch,
+        amount: amount,
+        interestRate: rate,
+        duration: durationStr,
+        status: "Active",
+        date: formatDateTime(),
+        joinDate: formatDateDDMMYYYY()
+    });
+
+
+    saveDB();
+
+
+    document.getElementById("amtLoan").value = "";
+
+    document.getElementById("loanDurationVal").value = "";
+
+    document.getElementById("formLoan")
+        .classList.remove("active");
+
+    refreshAll();
 }
+
+
+/* =========================================
+   ADD EMI
+   INTEREST = REMAINING PRINCIPAL × RATE
+========================================= */
+
+function addEmiTrans(){
+
+    var branch =
+        document.getElementById("emiBranch").value;
+
+    var member =
+        document.getElementById("emiMember").value;
+
+    var principal =
+        Number(
+            document.getElementById("emiPrincipal").value
+        ) || 0;
+
+    if(!branch || !member){
+        alert("Please select branch and member");
+        return;
+    }
+
+    if(principal <= 0){
+        alert("Please enter a valid principal amount.");
+        return;
+    }
+
+    /* =========================
+       FIND ACTIVE LOAN
+    ========================= */
+
+    var activeLoan =
+        db.loans.find(function(l){
+            return (
+                l.member === member &&
+                l.status === "Active"
+            );
+        });
+
+    if(!activeLoan){
+        alert("No active loan found for this member.");
+        return;
+    }
+
+    /* =========================
+       TOTAL PRINCIPAL ALREADY PAID
+    ========================= */
+
+    var totalPaidPrincipal =
+        db.transactions
+        .filter(function(t){
+            return (
+                t.type === "EMI Collect" &&
+                t.member === member &&
+                t.loanId === activeLoan.id
+            );
+        })
+        .reduce(function(sum,t){
+            return sum + Number(t.principal || 0);
+        },0);
+
+    /* =========================
+       REMAINING PRINCIPAL
+    ========================= */
+
+    var remainingPrincipal =
+        Math.max(
+            0,
+            Number(activeLoan.amount || 0) -
+            totalPaidPrincipal
+        );
+
+    if(remainingPrincipal <= 0){
+
+        activeLoan.status = "Closed";
+
+        saveDB();
+
+        alert("This loan is already fully paid.");
+
+        return;
+    }
+
+    /* =========================
+       PRINCIPAL CANNOT EXCEED BALANCE
+    ========================= */
+
+    if(principal > remainingPrincipal){
+
+        principal = remainingPrincipal;
+
+        document.getElementById(
+            "emiPrincipal"
+        ).value = principal;
+    }
+
+    /* =========================
+       CURRENT INTEREST
+       INTEREST IS LOCKED
+    ========================= */
+
+    var interest =
+        Math.round(
+            remainingPrincipal *
+            (
+                Number(
+                    activeLoan.interestRate || 0
+                ) / 100
+            )
+        );
+
+    /* Show calculated interest */
+
+    document.getElementById(
+        "emiInterest"
+    ).value = interest;
+
+    /* =========================
+       TOTAL PAYMENT
+    ========================= */
+
+    var total =
+        principal + interest;
+
+    if(total <= 0){
+        alert("Invalid payment amount.");
+        return;
+    }
+
+    /* =========================
+       SAVE TRANSACTION
+    ========================= */
+
+    db.transactions.push({
+        id: Date.now(),
+        type: "EMI Collect",
+        loanId: activeLoan.id,       // <-- लोन ट्रैक करने के लिए ज़रूरी
+        branch: branch,
+        member: member,
+        amount: total,               // <-- 'amount' की जगह 'total' (P + I)
+        principal: principal,        // <-- बैलेंस कम करने के लिए ज़रूरी
+        interest: interest,          // <-- ब्याज ट्रैक करने के लिए
+        date: formatDateTime(),      // <-- तारीख और समय
+        joinDate: formatDateTime()
+    });
+    /* =========================
+       NEW REMAINING PRINCIPAL
+    ========================= */
+
+    var newRemainingPrincipal =
+        Math.max(
+            0,
+            remainingPrincipal - principal
+        );
+
+    /* =========================
+       CLOSE LOAN
+    ========================= */
+
+    if(newRemainingPrincipal <= 0){
+
+        activeLoan.status = "Closed";
+
+        activeLoan.closedDate =
+            formatDateDDMMYYYY();
+    }
+
+    /* =========================
+       SAVE
+    ========================= */
+
+    saveDB();
+
+    /* =========================
+       CLEAR FORM
+    ========================= */
+
+    document.getElementById(
+        "emiPrincipal"
+    ).value = "";
+
+    document.getElementById(
+        "emiInterest"
+    ).value = "";
+
+    document.getElementById(
+        "emiTotalDisplay"
+    ).innerText = "₹0";
+
+    document.getElementById(
+        "formEmi"
+    ).classList.remove("active");
+
+    refreshAll();
+}
+
+/* =========================================
+   NOTIFICATION / REMINDER
+========================================= */
+
+function checkReminders(){
+
+    var badge =
+        document.getElementById("notifBadge");
+
+    var contentBox =
+        document.getElementById("notifListContent");
+
+    var reminders = [];
+
+
+    var loansToCheck =
+        db.loans;
+
+
+    if(
+        currentUser &&
+        currentUser.role === "BR"
+    ){
+
+        loansToCheck =
+            db.loans.filter(function(l){
+
+                return l.branch ===
+                    currentUser.branch;
+
+            });
+
+    }
+
+    else if(
+        currentUser &&
+        currentUser.role === "MB"
+    ){
+
+        loansToCheck =
+            db.loans.filter(function(l){
+
+                return l.member ===
+                    currentUser.name;
+
+            });
+
+    }
+
+
+    loansToCheck.forEach(function(l){
+
+        if(l.status !== "Active"){
+            return;
+        }
+
+
+        /* =================================
+           PAID PRINCIPAL
+        ================================= */
+
+        var totalPaidPrincipal =
+            db.transactions
+            .filter(function(t){
+
+                return (
+                    t.type === "EMI Collect" &&
+                    t.member === l.member &&
+                    t.loanId === l.id
+                );
+
+            })
+            .reduce(function(sum,t){
+
+                return sum +
+                    Number(t.principal || 0);
+
+            },0);
+
+
+        /* =================================
+           REMAINING PRINCIPAL
+        ================================= */
+
+        var remainingPrincipal =
+            Math.max(
+                0,
+                Number(l.amount || 0) -
+                totalPaidPrincipal
+            );
+
+
+        if(remainingPrincipal <= 0){
+            return;
+        }
+
+
+        /* =================================
+           CURRENT INTEREST
+        ================================= */
+
+        var currentInterest =
+            Math.round(
+                remainingPrincipal *
+                (
+                    Number(l.interestRate || 0)
+                    / 100
+                )
+            );
+
+
+        /* =================================
+           ORIGINAL DURATION
+        ================================= */
+
+        var valParts =
+            String(l.duration || "1")
+            .split(" ");
+
+        var count =
+            Number(valParts[0]) || 1;
+
+
+        /* =================================
+           SUGGESTED PRINCIPAL
+        ================================= */
+
+        var principalInstallment =
+            Math.ceil(
+                Number(l.amount || 0) /
+                count
+            );
+
+
+        principalInstallment =
+            Math.min(
+                principalInstallment,
+                remainingPrincipal
+            );
+
+
+        var installmentAmount =
+            principalInstallment +
+            currentInterest;
+
+
+        var escapedBranch =
+            String(l.branch || "")
+            .replace(/'/g, "\\'");
+
+        var escapedMember =
+            String(l.member || "")
+            .replace(/'/g, "\\'");
+
+
+        reminders.push(`
+
+<div style="padding:12px 0;border-bottom:1px solid #eee;">
+
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+
+    <div>
+      <b>${l.member}</b>
+      <br>
+      <small style="color:#777;">
+        Branch: ${l.branch}
+      </small>
+    </div>
+
+    <div style="text-align:right;">
+
+      <span style="color:#dc3545;font-weight:bold;">
+        Due: ₹${installmentAmount.toLocaleString("en-IN")}
+      </span>
+
+      <br>
+
+      <small style="color:#555;">
+        Principal: ₹${principalInstallment.toLocaleString("en-IN")}
+        | Interest: ₹${currentInterest.toLocaleString("en-IN")}
+      </small>
+
+      <br>
+
+      <small style="color:#555;">
+        Balance: ₹${remainingPrincipal.toLocaleString("en-IN")}
+      </small>
+
+    </div>
+
+  </div>
+
+
+  <button
+    style="width:100%;background:#198754;color:white;padding:8px;font-size:13px;border-radius:6px;font-weight:bold;"
+    onclick="payFromNotification('${escapedBranch}', '${escapedMember}')"
+  >
+    Pay Now
+  </button>
+
+</div>
+
+`);
+
+    });
+
+
+    if(reminders.length > 0){
+
+        badge.style.display = "flex";
+
+        badge.innerText =
+            reminders.length;
+
+        contentBox.innerHTML =
+            reminders.join("");
+
+    }
+
+    else {
+
+        badge.style.display = "none";
+
+        contentBox.innerHTML =
+            "No active reminders.";
+
+    }
+
 }
 function payFromNotification(branchName, memberName){
 toggleNotifModal(false);
@@ -983,50 +1953,6 @@ var memberSelect = document.getElementById("emiMember");
 memberSelect.value = memberName;
 loadMemberActiveLoan();
 }, 100);
-}
-function checkReminders(){
-var badge = document.getElementById("notifBadge");
-var contentBox = document.getElementById("notifListContent");
-var reminders = [];
-var loansToCheck = db.loans;
-if(currentUser && currentUser.role === "BR"){
-loansToCheck = db.loans.filter(function(l){ return l.branch === currentUser.branch; });
-} else if(currentUser && currentUser.role === "MB"){
-loansToCheck = db.loans.filter(function(l){ return l.member === currentUser.name; });
-}
-loansToCheck.forEach(function(l){
-if(l.status === "Active"){
-var totalPaid = db.transactions.filter(function(t){
-return (t.type === "EMI Collect" && t.member === l.member && t.loanId === l.id);
-}).reduce(function(sum,t){
-return sum + Number(t.amount || 0);
-}, 0);
-var remainingDue = (l.totalPayable || l.amount) - totalPaid;
-if(remainingDue < 0){ remainingDue = 0; }
-var valParts = String(l.duration).split(" ");
-var count = Number(valParts[0]) || 1;
-var installmentAmt = Math.round((l.totalPayable || l.amount) / count);
-var escapedBranch = l.branch.replace(/'/g, "\\'");
-var escapedMember = l.member.replace(/'/g, "\\'");
-reminders.push(`
-<div style="padding:12px 0;border-bottom:1px solid #eee;">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-    <div><b>${l.member}</b><br><small style="color:#777;">Branch: ${l.branch}</small></div>
-    <div style="text-align:right;"><span style="color:#dc3545;font-weight:bold;">Due: ₹${installmentAmt.toLocaleString("en-IN")}</span><br><small style="color:#555;">Bal: ₹${remainingDue.toLocaleString("en-IN")}</small></div>
-  </div>
-  <button style="width:100%;background:#198754;color:white;padding:8px;font-size:13px;border-radius:6px;font-weight:bold;" onclick="payFromNotification('${escapedBranch}', '${escapedMember}')">Pay Now</button>
-</div>
-`);
-}
-});
-if(reminders.length > 0){
-badge.style.display = "flex";
-badge.innerText = reminders.length;
-contentBox.innerHTML = reminders.join("");
-} else {
-badge.style.display = "none";
-contentBox.innerHTML = "No active reminders.";
-}
 }
 /* ===================================================== TRANSACTIONS & MODULES ===================================================== */
 function addSavingsTrans(){
@@ -1046,141 +1972,17 @@ alert("Please select branch, member and enter valid amount");
 return;
 }
 db.transactions.push({
-id:Date.now(),
-type:"Savings",
-branch:branch,
-member:member,
-amount:amount,
-joinDate: formatDateDDMMYYYY()
+  id: Date.now(),
+  type: "Savings",
+  branch: branch,
+  member: member,
+  amount: amount,
+  date: formatDateTime(),      // <-- यहाँ बदलें
+  joinDate: formatDateTime()
 });
 saveDB();
 document.getElementById("amtSavings").value = "";
 document.getElementById("formSavings").classList.remove("active");
-refreshAll();
-}
-function addNewLoanTrans(){
-var branch = document.getElementById("loanBranch").value;
-var member = document.getElementById("loanMemberSel").value;
-var amount = Number(document.getElementById("amtLoan").value);
-var rate = Number(document.getElementById("loanInterestRate").value) || 0;
-var durationType = document.getElementById("loanDurationType").value;
-var durationVal = document.getElementById("loanDurationVal").value;
-if(!branch || !member || amount <= 0 || !durationVal){
-alert("Please fill all loan details properly");
-return;
-}
-var branchObj = db.branches.find(function(b){
-    return b.name === branch;
-});
-
-if(branchObj && branchObj.status === "Closed"){
-    alert("This branch is closed. New Loan is not allowed.");
-    return;
-}
-var savingsAmount = db.transactions
-.filter(function(t){
-    return t.type === "Savings" &&
-           t.branch === branch;
-})
-.reduce(function(sum,t){
-    return sum + Number(t.amount || 0);
-},0);
-
-var principalEMI = db.transactions
-.filter(function(t){
-    return t.type === "EMI Collect" &&
-           t.branch === branch;
-})
-.reduce(function(sum,t){
-    return sum + Number(t.principal || 0);
-},0);
-
-var existingNewLoans = db.transactions
-.filter(function(t){
-    return t.type === "New Loan" &&
-           t.branch === branch;
-})
-.reduce(function(sum,t){
-    return sum + Number(t.amount || 0);
-},0);
-
-var availableSavings =
-    savingsAmount +
-    principalEMI -
-    existingNewLoans;
-var availableSavings = savingsAmount + principalEMI - existingNewLoans;
-if(amount > availableSavings){
-alert("Loan cannot be issued!\n\nAvailable Savings: ₹" + availableSavings.toLocaleString("en-IN") + "\nLoan Amount: ₹" + amount.toLocaleString("en-IN"));
-return;
-}
-var totalInterest = Math.round(amount * (rate / 100));
-var totalPayable = amount + totalInterest;
-var durationStr = durationVal + " " + durationType;
-var loanId = Date.now();
-db.transactions.push({
-id:loanId,
-type:"New Loan",
-branch:branch,
-member:member,
-duration:durationStr,
-amount:amount,
-joinDate: formatDateDDMMYYYY()
-});
-db.loans.push({
-id:loanId,
-member:member,
-branch:branch,
-amount:amount,
-interestRate:rate,
-totalPayable:totalPayable,
-duration:durationStr,
-status:"Active",
-joinDate: formatDateDDMMYYYY()
-});
-saveDB();
-document.getElementById("amtLoan").value = "";
-document.getElementById("loanDurationVal").value = "";
-document.getElementById("formLoan").classList.remove("active");
-refreshAll();
-}
-function addEmiTrans(){
-var branch = document.getElementById("emiBranch").value;
-var member = document.getElementById("emiMember").value;
-var principal = Number(document.getElementById("emiPrincipal").value) || 0;
-var interest = Number(document.getElementById("emiInterest").value) || 0;
-var total = principal + interest;
-if(!branch || !member || total <= 0){
-alert("Please select branch, member and enter valid amounts");
-return;
-}
-var activeLoan = db.loans.find(function(l){ return (l.member === member && l.status === "Active"); });
-var loanId = activeLoan ? activeLoan.id : null;
-db.transactions.push({
-id:Date.now(),
-type:"EMI Collect",
-branch:branch,
-member:member,
-loanId:loanId,
-principal:principal,
-interest:interest,
-amount:total,
-joinDate: formatDateDDMMYYYY()
-});
-if(activeLoan){
-var totalPaidPrincipal = db.transactions.filter(function(t){
-return (t.type === "EMI Collect" && t.member === member && t.loanId === activeLoan.id);
-}).reduce(function(sum,t){
-return sum + Number(t.principal || 0);
-}, 0);
-if(totalPaidPrincipal >= activeLoan.amount){
-activeLoan.status = "Closed";
-}
-}
-saveDB();
-document.getElementById("emiPrincipal").value = "";
-document.getElementById("emiInterest").value = "";
-document.getElementById("emiTotalDisplay").innerText = "₹0";
-document.getElementById("formEmi").classList.remove("active");
 refreshAll();
 }
 function addQuickTransOthers(){
@@ -1214,12 +2016,13 @@ return;
 }
 }
 db.transactions.push({
-id:Date.now(),
-type:subType,
-branch:branch,
-amount:amount,
-description:desc,
-joinDate: formatDateDDMMYYYY()
+  id: Date.now(),
+  type: subType,
+  branch: branch,
+  amount: amount,
+  description: desc,
+  date: formatDateTime(),      // <-- यहाँ बदलें
+  joinDate: formatDateTime()
 });
 saveDB();
 document.getElementById("amtOthers").value = "";
@@ -1315,6 +2118,7 @@ async function addMember(){
   var memberId = Date.now();
   var branchObj = db.branches.find(function(b){ return b.name === branch; });
   var jDate = formatDateDDMMYYYY();
+
   if(window.firebaseCreateMember){
     await window.firebaseCreateMember(
       memberCode,
@@ -2075,62 +2879,36 @@ list.appendChild(div);
 }
 function getDistributionAvailableBalance(){
 
-    var branch = "";
+    var total = 0;
 
-    if(currentUser && currentUser.role === "BR"){
-        branch = currentUser.branch;
-    }
+    db.transactions.forEach(function(t){
 
-    if(currentUser && currentUser.role === "AD"){
-        var branchSel = document.getElementById("distributeBranchSelect");
-        branch = branchSel ? branchSel.value : "";
-    }
+        var amount = Number(t.amount || 0);
 
-    if(!branch) return 0;
+        if(t.type === "EMI Collect"){
 
-    var interest = db.transactions
-        .filter(function(t){
-            return t.type === "EMI Collect" &&
-                   t.branch === branch;
-        })
-        .reduce(function(sum,t){
-            return sum + Number(t.interest || 0);
-        },0);
+            total += Number(t.interest || 0);
 
-    var otherIn = db.transactions
-        .filter(function(t){
-            return t.type === "Other IN" &&
-                   t.branch === branch;
-        })
-        .reduce(function(sum,t){
-            return sum + Number(t.amount || 0);
-        },0);
+        }
+        else if(t.type === "Others IN"){
 
-    var otherOut = db.transactions
-        .filter(function(t){
-            return t.type === "Other OUT" &&
-                   t.branch === branch;
-        })
-        .reduce(function(sum,t){
-            return sum + Number(t.amount || 0);
-        },0);
+            total += amount;
 
-    var totalDistributed = db.transactions
-        .filter(function(t){
-            return t.type === "Distribute" &&
-                   t.branch === branch;
-        })
-        .reduce(function(sum,t){
-            return sum + Number(t.amount || 0);
-        },0);
+        }
+        else if(t.type === "Others OUT"){
 
-    var balance =
-        interest +
-        otherIn -
-        otherOut -
-        totalDistributed;
+            total -= amount;
 
-    return Math.max(0,balance);
+        }
+        else if(t.type === "Distribute"){
+
+            total -= amount;
+
+        }
+
+    });
+
+    return Math.max(0, total);
 }
 function setupDistributePageUI(){ 
     var container = document.getElementById("adminBranchSelectContainer"); 
@@ -2359,49 +3137,59 @@ function calculateSelectedMemberDistribution(){
     info.innerHTML = '<div style="display:grid;gap:4px;font-size:13px;color:#333;">' + '<div><b>Distribution Year:</b> ' + currentYear + '</div>' + '<div><b>Remaining Pool:</b> ₹' + currentRemainingPool.toLocaleString("en-IN") + ' | <b>Remaining Savings:</b> ₹' + remainingTotalSavings.toLocaleString("en-IN") + '</div>' + '<div><b>Member Savings:</b> ₹' + memberSavings.toLocaleString("en-IN") + '</div>' + '<div style="margin-top:4px;font-size:16px;font-weight:bold;color:#198754;">💰 Earning Share: ₹' + share.toLocaleString("en-IN", { minimumFractionDigits:2, maximumFractionDigits:2 }) + '</div>' + '</div>';  
 }
 function renderDistributions(){
-var box = document.getElementById("distributeList");
-if(!box){ return; }
-box.innerHTML = "";
-var searchInput = document.getElementById("searchDistributeInput");
-var search = searchInput ? searchInput.value.toLowerCase() : "";
-var list = db.transactions.filter(function(t){
-return t.type === "Distribute";
-}).slice().reverse().filter(function(t){
-if(!search){ return true; }
-var branchObj = db.branches.find(function(b){ return b.name === t.branch; });
-var branchName = t.branch ? t.branch.toLowerCase() : "";
-var branchCode = branchObj && branchObj.code ? branchObj.code.toLowerCase() : "";
-var memberObj = db.members.find(function(m){ return m.name === t.member; });
-var memberCode = memberObj && memberObj.memberId ? memberObj.memberId.toLowerCase() : "";
-var memberMatch = t.member && t.member.toLowerCase().indexOf(search) !== -1;
-var codeMatch = memberCode.indexOf(search) !== -1;
-var branchMatch = branchName.indexOf(search) !== -1;
-var branchCodeMatch = branchCode.indexOf(search) !== -1;
-return (memberMatch || codeMatch || branchMatch || branchCodeMatch);
-});
-list.forEach(function(t){
-var branchObj = db.branches.find(function(b){ return b.name === t.branch; });
-var branchCodeText = branchObj ? " [" + branchObj.code + "]" : "";
-var memberObj = db.members.find(function(m){ return m.name === t.member; });
-var memberCodeText = memberObj && memberObj.memberId ? " (" + memberObj.memberId + ")" : "";
-var itemEl = document.createElement("div");
-itemEl.className = "item";
-itemEl.innerHTML = `
-<div><b>💸 Distribute</b><br>
-<small>Branch: ${t.branch}${branchCodeText} | Member: ${t.member}${memberCodeText}</small><br>
-${t.description ? '<small>Description: ' + t.description + '</small><br>' : ""}
-<small style="color:#777;">${t.date}</small></div>
-<div style="text-align:right;"><b style="color:#dc3545;">-₹${Number(t.amount || 0).toLocaleString("en-IN")}</b></div>
-`;
-setupLongPress(itemEl, function(){
-if(confirm("Do you want to delete this distribution (₹" + t.amount + ")?")){
-db.transactions = db.transactions.filter(function(item){ return (item.id !== t.id); });
-saveDB();
-refreshAll();
-}
-});
-box.appendChild(itemEl);
-});
+  var box = document.getElementById("distributeList");
+  if(!box){ return; }
+  box.innerHTML = "";
+  var searchInput = document.getElementById("searchDistributeInput");
+  var search = searchInput ? searchInput.value.toLowerCase() : "";
+  
+  var list = db.transactions.filter(function(t){
+    return t.type === "Distribute";
+  }).slice().reverse().filter(function(t){
+    if(currentUser && currentUser.role === "BR"){
+      if(t.branch !== currentUser.branch) return false;
+    }
+    if(!search){ return true; }
+    var branchObj = db.branches.find(function(b){ return b.name === t.branch; });
+    var branchName = branchObj ? branchObj.name.toLowerCase() : (t.branch ? t.branch.toLowerCase() : "");
+    var branchCode = branchObj ? branchObj.code.toLowerCase() : "";
+    var memberName = t.member ? t.member.toLowerCase() : "";
+    
+    return (
+      branchName.indexOf(search) !== -1 ||
+      branchCode.indexOf(search) !== -1 ||
+      memberName.indexOf(search) !== -1
+    );
+  });
+  
+  if(list.length === 0){
+    box.innerHTML = '<div class="empty">No distribution history found</div>';
+    return;
+  }
+  
+  list.forEach(function(t){
+    var div = document.createElement("div");
+    div.className = "item";
+    div.innerHTML = `
+      <div>
+        <b>Distribute</b>
+        <br><small>Branch: ${t.branch} | Member: ${t.member}</small>
+        <br><small>${t.description || "Profit Share"}</small>
+        <br><small style="color:#777;">Date: ${t.joinDate || t.date || ""}</small>
+      </div>
+      <div style="text-align:right;">
+        <b style="color:#198754;font-size:17px;">+₹${Number(t.amount || 0).toLocaleString("en-IN")}</b>
+      </div>
+    `;
+    setupLongPress(div, function(){
+      if(confirm("Do you want to delete this distribution record?")){
+        db.transactions = db.transactions.filter(function(item){ return item.id !== t.id; });
+        saveDB();
+        refreshAll();
+      }
+    });
+    box.appendChild(div);
+  });
 }
 function addDistribute(){     
     var memberEl = document.getElementById("distributeMember");
@@ -2445,16 +3233,92 @@ function addDistribute(){
     refreshAll(); 
 }
 function deleteTransaction(id) {
-    if (confirm("Kya aap is distribution record ko delete karna chahte hain?")) {
-        // Sirf wahi item filter out hoga jiski ID match karegi, baaki history safe rahegi
-        db.transactions = db.transactions.filter(function(item) {
+
+    if (!confirm("Kya aap is transaction record ko delete karna chahte hain?")) {
+        return;
+    }
+
+    /* Deleted transaction ko pehle find karo */
+    var deletedTransaction =
+        db.transactions.find(function(item) {
+            return item.id === id;
+        });
+
+    if (!deletedTransaction) {
+        alert("Transaction not found.");
+        return;
+    }
+
+    /* Transaction delete */
+    db.transactions =
+        db.transactions.filter(function(item) {
             return item.id !== id;
         });
-        
-        saveDB();
-        refreshAll();
-        alert("Record successfully deleted!");
+
+    /* =========================================
+       LOAN BALANCE RECALCULATE
+       ========================================= */
+
+    if (
+        deletedTransaction.type === "EMI Collect" &&
+        deletedTransaction.loanId
+    ) {
+
+        var loan =
+            db.loans.find(function(l) {
+                return l.id === deletedTransaction.loanId;
+            });
+
+        if (loan) {
+
+            /* Is loan ke sabhi remaining EMI
+               principal payments dobara calculate karo */
+
+            var totalPaidPrincipal =
+                db.transactions
+                .filter(function(t) {
+                    return (
+                        t.type === "EMI Collect" &&
+                        t.loanId === loan.id
+                    );
+                })
+                .reduce(function(sum, t) {
+                    return sum +
+                        Number(t.principal || 0);
+                }, 0);
+
+            var remainingPrincipal =
+                Math.max(
+                    0,
+                    Number(loan.amount || 0) -
+                    totalPaidPrincipal
+                );
+
+            /* Loan status restore */
+            if (remainingPrincipal > 0) {
+
+                loan.status = "Active";
+
+                /* Agar pehle closed hua tha,
+                   closed date hata do */
+                delete loan.closedDate;
+
+            } else {
+
+                loan.status = "Closed";
+
+            }
+        }
     }
+
+    /* Firebase / database save */
+    saveDB();
+
+    /* Sabhi cards, transactions,
+       earnings aur loan balance refresh */
+    refreshAll();
+
+    alert("Transaction deleted successfully!");
 }
 /* ===================================================== INITIALIZATION ===================================================== */
 var currentUser = null;
@@ -2465,20 +3329,25 @@ updateRealTimeBadges();
 populateDistributeDropdowns();
 filterDistributeMembers();
 </script>
+
 <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
-  import {
-    getFirestore,
-    doc,
-    setDoc,
-    getDoc,
-    collection,
-    query,
-    where,
-    getDocs
-  } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
-  
-  // Add your firebase initialization configuration here if needed
+
+import {
+  initializeApp,
+  getApps
+} from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
+
+import {
+  getFirestore,
+  doc,
+  setDoc,
+  getDoc,
+  collection,
+  query,
+  where,
+  getDocs
+} from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
+
 import {
   getAuth,
   createUserWithEmailAndPassword,
@@ -2486,36 +3355,201 @@ import {
   signOut,
   onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
-  const firebaseConfig = {
-    apiKey: "AIzaSyD9ChxuR4xmP_BpTr0QykUWmS1ET5Q7KQE",
-    authDomain: "sirzon-7623d.firebaseapp.com",
-    projectId: "sirzon-7623d",
-    storageBucket: "sirzon-7623d.firebasestorage.app",
-    messagingSenderId: "864622428392",
-    appId: "1:864622428392:web:074240e85255e9e9b2895d"
-  };
 
-  const firebaseApp = initializeApp(firebaseConfig);
-  const firestoreDB = getFirestore(firebaseApp);
+
+/* ===============================
+   FIREBASE CONFIG
+================================ */
+
+const firebaseConfig = {
+  apiKey: "AIzaSyD9ChxuR4xmP_BpTr0QykUWmS1ET5Q7KQE",
+  authDomain: "sirzon-7623d.firebaseapp.com",
+  projectId: "sirzon-7623d",
+  storageBucket: "sirzon-7623d.firebasestorage.app",
+  messagingSenderId: "864622428392",
+  appId: "1:864622428392:web:074240e85255e9e9b2895d"
+};
+
+
+/* ===============================
+   INITIALIZE FIREBASE
+================================ */
+
+const firebaseApp = initializeApp(firebaseConfig);
+
+const firestoreDB = getFirestore(firebaseApp);
+
 const auth = getAuth(firebaseApp);
+
 window.firebaseAuth = auth;
 
-window.firebaseLogout = async function(){
+window.firestoreDB = firestoreDB;
 
-  try{
+
+/* ===============================
+   DATE FUNCTION
+================================ */
+
+function firebaseDate() {
+
+  const d = new Date();
+
+  const day = String(d.getDate()).padStart(2, "0");
+
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+
+  const year = d.getFullYear();
+
+  return day + "-" + month + "-" + year;
+
+}
+
+
+/* ===============================
+   LOGOUT
+================================ */
+
+window.firebaseLogout = async function() {
+
+  try {
 
     await signOut(auth);
 
-    console.log("✅ Firebase logout successful");
+    console.log("Firebase logout successful");
 
-  }catch(error){
+  } catch(error) {
 
-    console.error("❌ Firebase logout error:", error);
+    console.error("Firebase logout error:", error);
 
     throw error;
+
   }
 
 };
+
+
+/* ===============================
+   GENERATE MANAGER CODE
+   MG0001, MG0002...
+================================ */
+
+window.generateManagerCode = async function() {
+
+  const usersRef = collection(firestoreDB, "users");
+
+  const snapshot = await getDocs(usersRef);
+
+  let maxNumber = 0;
+
+  snapshot.forEach(function(docSnap) {
+
+    const user = docSnap.data();
+
+    if(user.code && /^MG\d{4}$/.test(user.code)) {
+
+      const number =
+        parseInt(user.code.substring(2), 10);
+
+      if(number > maxNumber) {
+
+        maxNumber = number;
+
+      }
+
+    }
+
+  });
+
+  return "MG" +
+    String(maxNumber + 1).padStart(4, "0");
+
+};
+
+
+/* ===============================
+   GENERATE BRANCH CODE
+   BRN-101, BRN-102...
+================================ */
+
+window.generateBranchCode = async function () {
+
+    try {
+
+        let maxNumber = 100;
+
+        // =================================
+        // 1. OLD SIRZON DATABASE BRANCH LIST
+        // =================================
+
+        if (
+            window.db &&
+            Array.isArray(window.db.branches)
+        ) {
+
+            window.db.branches.forEach(function (branch) {
+
+                const code =
+                    branch.branchCode ||
+                    branch.code ||
+                    "";
+
+                const match =
+                    String(code).match(/^BRN-(\d+)$/);
+
+                if (match) {
+
+                    const number =
+                        parseInt(match[1], 10);
+
+                    if (number > maxNumber) {
+                        maxNumber = number;
+                    }
+
+                }
+
+            });
+
+        }
+
+
+
+        // =================================
+        // 3. NEXT BRANCH CODE
+        // =================================
+
+        const nextNumber =
+            maxNumber + 1;
+
+        const branchCode =
+            "BRN-" + nextNumber;
+
+
+        console.log(
+            "✅ New Branch Code:",
+            branchCode
+        );
+
+
+        return branchCode;
+
+
+    } catch (error) {
+
+        console.error(
+            "❌ Generate Branch Code Error:",
+            error
+        );
+
+        throw error;
+    }
+
+};
+
+/* ===============================
+   CREATE MANAGER
+   FIREBASE AUTH + FIRESTORE
+================================ */
+
 window.firebaseCreateManager = async function(
   managerCode,
   password,
@@ -2523,269 +3557,485 @@ window.firebaseCreateManager = async function(
   branchName,
   branchCode,
   branchId
-){
-try {
+) {
+
+  try {
+
     const managerEmail =
       managerCode.toLowerCase() + "@sirzon.local";
 
-    const secondaryApp = initializeApp(
-      firebaseConfig,
-      "manager-" + managerCode
-    );
+    const appName =
+      "manager-" + managerCode;
 
-    const secondaryAuth = getAuth(secondaryApp);
+    let secondaryApp;
 
-    const result = await createUserWithEmailAndPassword(
-      secondaryAuth,
-      managerEmail,
-      password
-    );
+    const existingApp =
+      getApps().find(function(app) {
+
+        return app.name === appName;
+
+      });
+
+    if(existingApp) {
+
+      secondaryApp = existingApp;
+
+    } else {
+
+      secondaryApp =
+        initializeApp(firebaseConfig, appName);
+
+    }
+
+    const secondaryAuth =
+      getAuth(secondaryApp);
+
+    const result =
+      await createUserWithEmailAndPassword(
+        secondaryAuth,
+        managerEmail,
+        password
+      );
 
     await setDoc(
       doc(firestoreDB, "users", managerCode),
       {
+
         role: "BR",
-name: managerName,
-code: managerCode,
-email: managerEmail,
-branch: branchName,
-branchCode: branchCode,
-branchId: branchId,
-joinDate: formatDateDDMMYYYY()
+
+        name: managerName,
+
+        code: managerCode,
+
+        email: managerEmail,
+
+        branch: branchName,
+
+        branchCode: branchCode,
+
+        branchId: branchId,
+
+        joinDate: firebaseDate(),
+
+        status: "Active"
+
       },
       { merge: true }
     );
 
     await signOut(secondaryAuth);
 
-    console.log("✅ Manager Firebase Auth created:", managerCode);
+    console.log(
+      "Manager Firebase Auth created:",
+      managerCode
+    );
 
     return {
+
+      success: true,
+
       uid: result.user.uid,
-      email: managerEmail
+
+      email: managerEmail,
+
+      code: managerCode
+
     };
 
-  }catch(error){
-
-    console.error("❌ Manager creation error:", error);
-
-    alert("Firebase Manager Error:\n" + error.message);
-
-    throw error;
-}
-};
-
-window.firebaseCreateMember = async function(
-  memberCode,
-  password,
-  memberName,
-  branchName,
-  branchCode,
-  branchId,
-  mobile,
-  address,
-  joinDate
-){ 
-try {
-  const memberEmail = memberCode.toLowerCase() + "@sirzon.local";
-
-  const secondaryApp = initializeApp(
-    firebaseConfig,
-    "member-" + memberCode
-  );
-
-  const secondaryAuth = getAuth(secondaryApp);
-
-  const result = await createUserWithEmailAndPassword(
-    secondaryAuth,
-    memberEmail,
-    password
-  );
-
-  await setDoc(
-    doc(firestoreDB, "users", memberCode),
-    {
-      role: "MB",
-      name: memberName,
-      code: memberCode,
-      email: memberEmail,
-      branch: branchName,
-      branchCode: branchCode,
-      branchId: branchId,
-      mobile: mobile,
-      address: address,
-      joinDate: joinDate
-    },
-    { merge: true }
-  );
-
-    await signOut(secondaryAuth);
-
-  return result.user.uid;
-
-} catch(error) {
-
-  console.error("❌ Member creation error:", error);
-
-  alert("Firebase Member Error:\n" + error.message);
-
-  throw error;
-}
-};
-
-window.firebaseLoginTest = async function () {
-  try {
-    const email = prompt("Firebase Email डालें:");
-    const password = prompt("Firebase Password डालें:");
-
-    if (!email || !password) return;
-
-    const result = await signInWithEmailAndPassword(
-      auth,
-      email,
-      password
-    );
-
-    alert("✅ Firebase Login Successful!\n" + result.user.email);
-
-  } catch (error) {
-    alert("❌ Firebase Login Error: " + error.message);
-  }
-};
-
-window.firebaseSirzonLogin = async function(username, password) {
-  try {
-    const userDoc = await getDoc(
-      doc(firestoreDB, "users", username)
-    );
-
-    if (!userDoc.exists()) {
-      throw new Error("User " + username + " Firebase में नहीं मिला");
-    }
-const userData = userDoc.data();
-    if (!userData.email) {
-      throw new Error("इस user का email Firestore में नहीं है");
-    }
-
-    const result = await signInWithEmailAndPassword(
-      auth,
-      userData.email,
-      password
-    );
-
-    return {
-  id: result.user.uid,
-  name: userData.name || "User",
-  username: userData.code || username,
-  role: userData.role || "",
-  code: userData.code || username,
-  email: userData.email || "",
-  branch: userData.branch || "",
-  branchCode: userData.branchCode || "",
-  branchId: userData.branchId || "",
-  joinDate: userData.joinDate || ""
-};
-
-  } catch (error) {
-    alert("❌ Login Error: " + error.message);
-    return null;
-  }
-};
-
-  window.firestoreDB = firestoreDB;
-  // ===============================
-// SIRZON FIRESTORE DATABASE
-// ===============================
-
-const sirzonDatabaseRef = doc(
-  firestoreDB,
-  "system",
-  "database"
-);
-
-// ===============================
-// INITIALIZE SIRZON DATABASE
-// ===============================
-
-if (!window.db) {
-  window.db = {
-    users: [],
-    branches: [],
-    members: [],
-    transactions: [],
-    loans: []
-  };
-}
-// Firestore se SIRZON data load
-window.firebaseDBReady = (async function(){
-
-  try {
-
-    const snap = await getDoc(sirzonDatabaseRef);
-
-    if(snap.exists()){
-
-      const data = snap.data();
-
-      window.db.users =
-        Array.isArray(data.users) ? data.users : [];
-
-      window.db.branches =
-        Array.isArray(data.branches) ? data.branches : [];
-
-      window.db.members =
-        Array.isArray(data.members) ? data.members : [];
-
-      window.db.transactions =
-        Array.isArray(data.transactions) ? data.transactions : [];
-
-      window.db.loans =
-        Array.isArray(data.loans) ? data.loans : [];
-
-      console.log("✅ SIRZON database Firestore se load ho gaya");
-
-    }else{
-
-      // First time database create
-      await setDoc(sirzonDatabaseRef, {
-
-        users: [],
-        branches: [],
-        members: [],
-        transactions: [],
-        loans: []
-
-      });
-
-      console.log("✅ SIRZON Firestore database created");
-
-    }
-
-  }catch(error){
+  } catch(error) {
 
     console.error(
-      "❌ Firestore database load error:",
+      "Manager creation error:",
+      error
+    );
+
+    throw error;
+
+  }
+
+};
+
+
+/* ===============================
+   SAVE BRANCH
+================================ */
+
+window.firebaseSaveBranch = async function (
+    branchCode,
+    branchData
+) {
+
+    try {
+
+        // Make sure db exists
+        if (!window.db) {
+            window.db = {
+                users: [],
+                branches: [],
+                members: [],
+                transactions: [],
+                loans: []
+            };
+        }
+
+        if (!Array.isArray(window.db.branches)) {
+            window.db.branches = [];
+        }
+
+
+        // =================================
+        // OLD APP FIELD NAMES
+        // renderBranches() इन्हीं को पढ़ता है
+        // =================================
+
+        const newBranch = {
+
+            id: Date.now(),
+
+            name:
+                branchData.branchName || "",
+
+            code:
+                branchCode,
+
+            manager:
+                branchData.managerName || "",
+
+            mobile:
+                branchData.mobile || "",
+
+            address:
+                branchData.address || "",
+
+            status:
+                branchData.status || "Active",
+
+            joinDate:
+                branchData.createdAt ||
+                formatDateDDMMYYYY(),
+
+            branchCode:
+                branchCode,
+
+            branchName:
+                branchData.branchName || "",
+
+            managerName:
+                branchData.managerName || "",
+
+            createdAt:
+                branchData.createdAt ||
+                formatDateDDMMYYYY()
+
+        };
+
+
+        // =================================
+        // CHECK EXISTING BRANCH
+        // =================================
+
+        const index =
+            window.db.branches.findIndex(
+                function (branch) {
+
+                    return (
+                        branch.code === branchCode ||
+                        branch.branchCode === branchCode
+                    );
+
+                }
+            );
+
+
+        // =================================
+        // UPDATE EXISTING
+        // =================================
+
+        if (index !== -1) {
+
+            window.db.branches[index] = {
+
+                ...window.db.branches[index],
+
+                ...newBranch
+
+            };
+
+        }
+
+        // =================================
+        // ADD NEW BRANCH
+        // =================================
+
+        else {
+
+            window.db.branches.push(
+                newBranch
+            );
+
+        }
+
+
+        // =================================
+        // SAVE ONLY:
+        // system/database
+        // =================================
+
+        await window.firebaseSaveDB();
+
+
+        console.log(
+            "✅ Branch saved:",
+            branchCode
+        );
+
+
+        // =================================
+        // REFRESH ADMIN BRANCH HISTORY
+        // =================================
+
+        if (
+            typeof renderBranches ===
+            "function"
+        ) {
+
+            renderBranches();
+
+        }
+
+
+        return true;
+
+
+    } catch (error) {
+
+        console.error(
+            "❌ Branch save error:",
+            error
+        );
+
+        throw error;
+
+    }
+
+};
+
+/* ===============================
+   FIREBASE LOGIN
+================================ */
+
+window.firebaseSirzonLogin = async function(
+  username,
+  password
+) {
+
+  try {
+
+    const loginCode =
+      username.trim().toUpperCase();
+
+    const userDoc =
+      await getDoc(
+        doc(firestoreDB, "users", loginCode)
+      );
+
+    if(!userDoc.exists()) {
+
+      throw new Error(
+        "User " + loginCode +
+        " Firebase mein nahi mila"
+      );
+
+    }
+
+    const userData =
+      userDoc.data();
+
+    if(!userData.email) {
+
+      throw new Error(
+        "Is user ka email Firestore mein nahi hai"
+      );
+
+    }
+
+    const result =
+      await signInWithEmailAndPassword(
+        auth,
+        userData.email,
+        password
+      );
+
+    return {
+
+      id: result.user.uid,
+
+      name: userData.name || "User",
+
+      username: userData.code || loginCode,
+
+      role: userData.role || "",
+
+      code: userData.code || loginCode,
+
+      email: userData.email || "",
+
+      branch: userData.branch || "",
+
+      branchCode: userData.branchCode || "",
+
+      branchId: userData.branchId || "",
+
+      joinDate: userData.joinDate || "",
+
+      status: userData.status || "Active"
+
+    };
+
+  } catch(error) {
+
+    console.error(
+      "Login error:",
       error
     );
 
     alert(
-      "❌ Firestore Database Load Error:\n" +
+      "Login Error: " + error.message
+    );
+
+    return null;
+
+  }
+
+};
+
+
+/* ===============================
+   SIRZON FIRESTORE DATABASE
+================================ */
+
+const sirzonDatabaseRef =
+  doc(
+    firestoreDB,
+    "system",
+    "database"
+  );
+
+
+/* ===============================
+   INITIAL DATABASE
+================================ */
+
+if(!window.db) {
+
+  window.db = {
+
+    users: [],
+
+    branches: [],
+
+    members: [],
+
+    transactions: [],
+
+    loans: []
+
+  };
+
+}
+
+
+/* ===============================
+   FIRESTORE DATABASE LOAD
+================================ */
+
+window.firebaseDBReady = (async function() {
+
+  try {
+
+    const snap =
+      await getDoc(sirzonDatabaseRef);
+
+    if(snap.exists()) {
+
+      const data =
+        snap.data();
+
+      window.db.users =
+        Array.isArray(data.users)
+          ? data.users : [];
+
+      window.db.branches =
+        Array.isArray(data.branches)
+          ? data.branches : [];
+
+      window.db.members =
+        Array.isArray(data.members)
+          ? data.members : [];
+
+      window.db.transactions =
+        Array.isArray(data.transactions)
+          ? data.transactions : [];
+
+      window.db.loans =
+        Array.isArray(data.loans)
+          ? data.loans : [];
+
+      console.log(
+        "SIRZON database Firestore se load ho gaya"
+      );
+
+    } else {
+
+      await setDoc(
+        sirzonDatabaseRef,
+        {
+
+          users: [],
+
+          branches: [],
+
+          members: [],
+
+          transactions: [],
+
+          loans: []
+
+        }
+      );
+
+      console.log(
+        "SIRZON Firestore database created"
+      );
+
+    }
+
+  } catch(error) {
+
+    console.error(
+      "Firestore database load error:",
+      error
+    );
+
+    alert(
+      "Firestore Database Load Error:\n" +
       error.message
     );
 
     throw error;
+
   }
 
 })();
 
 
-// ===============================
-// SAVE SIRZON DATABASE
-// ===============================
+/* ===============================
+   SAVE SIRZON DATABASE
+================================ */
 
-window.firebaseSaveDB = async function(){
+window.firebaseSaveDB = async function() {
 
-  try{
+  try {
 
     await setDoc(
       sirzonDatabaseRef,
@@ -2804,143 +4054,159 @@ window.firebaseSaveDB = async function(){
       }
     );
 
-    console.log("✅ SIRZON data Firestore me save ho gaya");
+    console.log(
+      "SIRZON data Firestore me save ho gaya"
+    );
 
-  }catch(error){
+  } catch(error) {
 
     console.error(
-      "❌ Firestore save error:",
+      "Firestore save error:",
       error
     );
 
     alert(
-      "❌ Firestore Save Error:\n" +
+      "Firestore Save Error:\n" +
       error.message
     );
 
     throw error;
+
   }
 
 };
 
-  window.testFirebase = async function () {
+
+/* ===============================
+   FIREBASE AUTH SESSION
+================================ */
+
+onAuthStateChanged(
+  auth,
+  async function(firebaseUser) {
+
+    if(!firebaseUser) {
+
+      currentUser = null;
+
+      document.getElementById("loginPage")
+        .style.display = "flex";
+
+      document.getElementById("app")
+        .style.display = "none";
+
+      return;
+
+    }
+
     try {
-      await setDoc(
-        doc(firestoreDB, "system", "connectionTest"),
-        {
-          connected: true,
-          time: new Date().toISOString()
-        }
-      );
 
-      const snap = await getDoc(
-        doc(firestoreDB, "system", "connectionTest")
-      );
+      if(window.firebaseDBReady) {
 
-      if (snap.exists()) {
-        alert("✅ Firebase + Firestore Connected!");
-      } else {
-        alert("❌ Data read nahi hua.");
+        await window.firebaseDBReady;
+
       }
 
-    } catch (error) {
-      alert("❌ Firestore Error: " + error.message);
-    }
-  };
-// ===============================
-// FIREBASE AUTH SESSION
-// AD / MG / MB
-// ===============================
+      const userQuery =
+        query(
+          collection(firestoreDB, "users"),
+          where(
+            "email",
+            "==",
+            firebaseUser.email
+          )
+        );
 
-onAuthStateChanged(auth, async function(firebaseUser){
+      const userSnapshot =
+        await getDocs(userQuery);
 
-  if(!firebaseUser){
+      if(userSnapshot.empty) {
 
-    currentUser = null;
+        console.error(
+          "Firebase user ka Firestore profile nahi mila."
+        );
 
-    document.getElementById("loginPage").style.display = "flex";
-    document.getElementById("app").style.display = "none";
+        alert(
+          "User profile Firestore mein nahi mila."
+        );
 
-    return;
-  }
+        await signOut(auth);
 
-  try{
+        return;
 
-    // Firestore database ready hone ka wait
-    if(window.firebaseDBReady){
-      await window.firebaseDBReady;
-    }
+      }
 
-    // Firebase email se user document search
-    const userQuery = query(
-      collection(firestoreDB, "users"),
-      where("email", "==", firebaseUser.email)
-    );
+      const userDoc =
+        userSnapshot.docs[0];
 
-    const userSnapshot = await getDocs(userQuery);
+      const userData =
+        userDoc.data();
 
-    if(userSnapshot.empty){
+      currentUser = {
+
+        id: firebaseUser.uid,
+
+        name: userData.name || "",
+
+        username:
+          userData.code || userDoc.id,
+
+        code:
+          userData.code || userDoc.id,
+
+        role:
+          userData.role || "",
+
+        email:
+          userData.email || firebaseUser.email,
+
+        branch:
+          userData.branch || "",
+
+        branchCode:
+          userData.branchCode || "",
+
+        branchId:
+          userData.branchId || "",
+
+        joinDate:
+          userData.joinDate || "",
+
+        status:
+          userData.status || "Active"
+
+      };
+
+      console.log(
+        "Firebase session:",
+        currentUser
+      );
+
+      showApp(currentUser);
+
+    } catch(error) {
 
       console.error(
-        "Firebase user ka Firestore profile nahi mila."
+        "Firebase session error:",
+        error
       );
 
       alert(
-        "❌ User profile Firestore me nahi mila."
+        "Session Error:\n" +
+        error.message
       );
 
-      await signOut(auth);
-
-      return;
     }
-
-    const userDoc = userSnapshot.docs[0];
-    const userData = userDoc.data();
-
-    currentUser = {
-
-      id: firebaseUser.uid,
-
-      name: userData.name || "",
-
-      username: userData.code || userDoc.id,
-
-      code: userData.code || userDoc.id,
-
-      role: userData.role || "",
-
-      email: userData.email || firebaseUser.email,
-
-      branch: userData.branch || "",
-
-      branchCode: userData.branchCode || "",
-
-      joinDate: userData.joinDate || ""
-
-    };
-
-    console.log(
-      "✅ Firebase session:",
-      currentUser
-    );
-
-    showApp(currentUser);
-
-  }catch(error){
-
-    console.error(
-      "❌ Firebase session error:",
-      error
-    );
-
-    alert(
-      "❌ Session Error:\n" +
-      error.message
-    );
 
   }
 
-});
+);
+
+
+console.log(
+  "SIRZON Firebase system ready"
+);
+
 </script>
 </body>
 </html>
