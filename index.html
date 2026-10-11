@@ -2878,34 +2878,24 @@ list.appendChild(div);
 
 }
 function getDistributionAvailableBalance(){
-
     var total = 0;
-
+    if(!db || !db.transactions) return 0;
+    
     db.transactions.forEach(function(t){
-
         var amount = Number(t.amount || 0);
 
         if(t.type === "EMI Collect"){
-
             total += Number(t.interest || 0);
-
         }
-        else if(t.type === "Others IN"){
-
+        else if(t.type === "Other IN" || t.type === "Others IN"){
             total += amount;
-
         }
-        else if(t.type === "Others OUT"){
-
+        else if(t.type === "Other OUT" || t.type === "Others OUT"){
             total -= amount;
-
         }
         else if(t.type === "Distribute"){
-
             total -= amount;
-
         }
-
     });
 
     return Math.max(0, total);
