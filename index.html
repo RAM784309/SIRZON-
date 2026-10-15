@@ -150,8 +150,14 @@ button{ border:0; border-radius:10px; padding:13px 18px; cursor:pointer; }
 </div>
 <!-- MENU LINKS -->
 <div class="nav" id="navMenu">
-<button onclick="openChangePassword()" style="background:#f8f9fa;">
-🔐 &nbsp; Change Password
+<button type="button" onclick="openSirzonSettings()">
+  ⚙️ Settings
+</button>
+<button type="button" onclick="openSirzonLanguage()">
+  🌐 Language
+</button>
+<button type="button" onclick="openSirzonTerms()">
+  📜 Terms & Conditions
 </button>
 <button onclick="logout()" style="color:red;">
 🚪 &nbsp; Logout
@@ -428,21 +434,35 @@ Submit Others
 </div>
 <!-- MEMBER EARNING PAGE -->
 <div class="page" id="earningPageMember">
-<div class="page-header-row">
-<div class="page-title">💸 My Earnings</div>
-<div class="real-time-badge" id="earningRealTimeBadge">September 2026</div>
-</div>
-<div class="cards">
-<div class="card">
-<div class="card-title"> Total Savings </div>
-<div class="card-value" id="memberSavingsVal"> ₹0 </div>
-</div>
-<div class="card">
-<div class="card-title"> Total Received Distributions </div>
-<div class="card-value" id="memberDistributeVal"> ₹0 </div>
-</div>
-</div>
-<div class="list" id="memberEarningsList"></div>
+
+    <div class="page-header-row">
+        <div class="page-title">💸 My Earnings</div>
+        <div class="real-time-badge" id="earningRealTimeBadge">
+            September 2026
+        </div>
+    </div>
+
+    <div class="cards">
+
+        <!-- Total Earnings -->
+        <div class="card">
+            <div class="card-title">My Earning Share</div>
+            <div class="card-value" id="memberEarningsTotal">₹0</div>
+        </div>
+
+        <!-- Total Withdrawal -->
+        <div class="card">
+            <div class="card-title">My Earning Received</div>
+            <div class="card-value" id="memberWithdrawalTotal">₹0</div>
+        </div>
+
+    </div>
+
+    <!-- Recent History -->
+    <h3 style="margin:20px 0 10px;">Recent History</h3>
+
+    <div class="list" id="memberEarningsList"></div>
+
 </div>
 <!-- ACCOUNT -->
 <div class="page" id="accountPage">
@@ -505,6 +525,152 @@ Submit Others
 <button class="cancel-password" onclick="closeChangePassword()"> Cancel </button>
 <button class="change-password-btn" onclick="changeMemberPassword()"> Change </button>
 </div>
+</div>
+</div>
+<!-- SIRZON SETTINGS MODAL -->
+<div id="sirzonSettingsModal" class="modal-overlay">
+  <div class="modal-box" style="max-height:90vh;overflow-y:auto;">
+
+    <div class="modal-header">
+      <h3>⚙️ SIRZON Settings</h3>
+      <button type="button" onclick="closeSirzonSettings()">✕</button>
+    </div>
+
+    <label for="settingSavingType">Saving Type</label>
+    <select id="settingSavingType"
+            onchange="updateSirzonWeekDayVisibility()">
+      <option value="Weekly">Weekly</option>
+      <option value="Monthly">Monthly</option>
+    </select>
+
+    <label for="settingSavingAmount">Saving Amount (₹)</label>
+    <select id="settingSavingAmount"
+            onchange="updateCustomSavingAmount()">
+      <option value="10">₹10</option>
+      <option value="20">₹20</option>
+      <option value="30">₹30</option>
+      <option value="40">₹40</option>
+      <option value="50">₹50</option>
+      <option value="100">₹100</option>
+      <option value="200">₹200</option>
+      <option value="300">₹300</option>
+      <option value="400">₹400</option>
+      <option value="500">₹500</option>
+      <option value="Custom">Custom Amount</option>
+    </select>
+
+    <div id="customSavingAmountBox" style="display:none;">
+      <label for="settingCustomSavingAmount">Custom Amount (₹)</label>
+      <input type="number"
+             id="settingCustomSavingAmount"
+             min="1"
+             step="1"
+             placeholder="Enter saving amount">
+    </div>
+
+    <div id="settingWeekDayBox">
+      <label for="settingWeekDay">Week Day</label>
+      <select id="settingWeekDay">
+        <option value="Sunday">Sunday</option>
+        <option value="Monday">Monday</option>
+        <option value="Tuesday">Tuesday</option>
+        <option value="Wednesday">Wednesday</option>
+        <option value="Thursday">Thursday</option>
+        <option value="Friday">Friday</option>
+        <option value="Saturday">Saturday</option>
+      </select>
+    </div>
+
+    <label for="settingWeeklyInterest">
+      Interest Percentage — Weekly (%)
+    </label>
+    <input type="number"
+           id="settingWeeklyInterest"
+           min="0"
+           max="100"
+           step="0.01"
+           placeholder="Enter weekly interest %">
+
+    <label for="settingMonthlyInterest">
+      Interest Percentage — Monthly (%)
+    </label>
+    <input type="number"
+           id="settingMonthlyInterest"
+           min="0"
+           max="100"
+           step="0.01"
+           placeholder="Enter monthly interest %">
+
+    <button type="button" id="saveSirzonSettingsBtn" class="login-btn" style="margin-top:12px;" onclick="saveSirzonSettings()">Save Settings</button>
+<button type="button" id="cancelSirzonSettingsBtn" style="width:100%;margin-top:8px;background:#eee;" onclick="closeSirzonSettings()">Cancel</button>
+
+    <p id="sirzonSettingsMessage" style="margin-top:12px;"></p>
+
+  </div>
+</div>
+<!-- SIRZON LANGUAGE MODAL -->
+<div id="sirzonLanguageModal" class="modal-overlay">
+  <div class="modal-box">
+
+    <div class="modal-header">
+      <h3>🌐 Language</h3>
+      <button type="button" onclick="closeSirzonLanguage()">✕</button>
+    </div>
+
+    <label for="sirzonLanguageSelect">Select Language</label>
+
+    <select id="sirzonLanguageSelect">
+      <option value="Hindi">हिंदी</option>
+      <option value="English">English</option>
+      <option value="Santali">Santali</option>
+    </select>
+
+    <button type="button"
+            class="login-btn"
+            style="margin-top:12px;"
+            onclick="saveSirzonLanguage()">
+      Save Language
+    </button>
+
+    <button type="button"
+            style="width:100%;margin-top:8px;background:#eee;"
+            onclick="closeSirzonLanguage()">
+      Cancel
+    </button>
+
+    <p id="sirzonLanguageMessage" style="margin-top:12px;"></p>
+
+  </div>
+</div>
+<div id="sirzonTermsModal" class="modal-overlay">
+<div class="modal-box" style="width:100%;max-width:600px;height:90vh;display:flex;flex-direction:column;padding:16px;">
+<div style="display:flex;justify-content:space-between;align-items:center;">
+<h3>Terms & Conditions</h3>
+<button type="button" onclick="window.closeSirzonTerms()">✕</button>
+</div>
+<div id="sirzonSavedRules" style="flex:1;overflow-y:auto;"></div>
+<div id="sirzonAddRulesBox" style="text-align:center;padding:12px 0;">
+<button type="button" class="login-btn" onclick="window.openNewRulePage()">+ Add Rules</button>
+</div>
+</div>
+</div>
+<div id="sirzonRulePage" class="modal-overlay">
+<div class="modal-box" style="width:100%;max-width:600px;height:90vh;display:flex;flex-direction:column;padding:16px;">
+<div style="display:flex;justify-content:space-between;align-items:center;">
+<h3 id="sirzonRulePageTitle">Add Rules</h3>
+<button type="button" onclick="window.closeNewRulePage()">✕</button>
+</div>
+<div style="flex:1;overflow-y:auto;padding-top:15px;">
+<label>Title Name</label>
+<input type="text" id="sirzonRuleTitle" placeholder="Title Name" style="width:100%;padding:12px;margin:8px 0 18px;box-sizing:border-box;">
+<div id="sirzonRuleDescriptions"></div>
+<div style="display:flex;justify-content:center;align-items:center;width:100%;margin:12px 0;">
+<button type="button" onclick="window.addRuleDescription()" style="display:flex;align-items:center;justify-content:center;border:0;background:#eaf7ed;color:#198754;border-radius:50%;width:50px;height:50px;font-size:30px;font-weight:bold;cursor:pointer;">+</button>
+</div>
+<div style="display:flex;justify-content:center;align-items:center;width:100%;padding-top:12px;padding-bottom:12px;">
+<button type="button" class="login-btn" onclick="window.saveNewRule()" style="width:100%;max-width:300px;">Save</button>
+</div>
+<div id="sirzonRuleMessage"></div>
 </div>
 </div>
 <script>
@@ -2450,30 +2616,123 @@ box.appendChild(div);
 });
 }
 function renderMemberEarnings(){
-var box = document.getElementById("memberEarningsList");
-if(!box) return;
-box.innerHTML = "";
-var myEarnings = db.transactions.filter(function(t){
-return t.type === "Distribute" &&
-(
-t.member === currentUser.name ||
-t.member === currentUser.memberId ||
-t.member === currentUser.code ||
-t.member === currentUser.username
-);
-}).slice().reverse();
-if(myEarnings.length === 0){
-box.innerHTML = '<div class="empty">No earnings or distributions found</div>';
+var totalEl=document.getElementById("memberEarningsTotal");
+var receivedEl=document.getElementById("memberWithdrawalTotal");
+var list=document.getElementById("memberEarningsList");
+var badge=document.getElementById("earningRealTimeBadge");
+if(!totalEl||!receivedEl||!list||!currentUser||!db)return;
+var transactions=db.transactions||[];
+var members=db.members||[];
+var now=new Date();
+var year=String(now.getFullYear());
+if(badge)badge.textContent=now.toLocaleDateString("en-IN",{month:"long",year:"numeric"});
+var member=members.find(function(m){
+return m.memberId===currentUser.memberId||m.memberId===currentUser.code||m.name===currentUser.name||m.username===currentUser.username;
+});
+if(!member){
+totalEl.textContent="₹0";
+receivedEl.textContent="₹0";
+list.innerHTML='<div class="empty">Member record not found</div>';
 return;
 }
-myEarnings.forEach(function(t){
-var div = document.createElement("div");
-div.className = "item";
-div.innerHTML = `
-<div><b>${t.type}</b><br><small>${t.description || ''}</small><br><small style="color:#777;">${t.date}</small></div>
-<div style="text-align:right;"><b style="color:#198754;font-size:17px;">+₹${Number(t.amount || 0).toLocaleString("en-IN")}</b></div>
-`;
-box.appendChild(div);
+var branch=member.branch;
+var memberId=member.memberId;
+var memberName=member.name;
+var alreadyDistributed=transactions.some(function(t){
+return t.type==="Distribute"&&t.branch===branch&&(t.member===memberId||t.member===memberName||t.memberId===memberId)&&String(t.year)===year;
+});
+var totalDistributedSoFar=transactions.filter(function(t){
+return t.type==="Distribute"&&t.branch===branch&&String(t.year)===year;
+}).reduce(function(sum,t){
+return sum+Number(t.amount||0);
+},0);
+var initialTotalEarnings=transactions.filter(function(t){
+return t.type==="EMI Collect"&&t.branch===branch;
+}).reduce(function(sum,t){
+return sum+Number(t.interest||0);
+},0)+transactions.filter(function(t){
+return t.type==="Other IN"&&t.branch===branch;
+}).reduce(function(sum,t){
+return sum+Number(t.amount||0);
+},0)-transactions.filter(function(t){
+return t.type==="Other OUT"&&t.branch===branch;
+}).reduce(function(sum,t){
+return sum+Number(t.amount||0);
+},0);
+var currentRemainingPool=Math.max(0,initialTotalEarnings-totalDistributedSoFar);
+var remainingTotalSavings=0;
+members.filter(function(m){
+return m.branch===branch;
+}).forEach(function(m){
+var isDistributed=transactions.some(function(t){
+return t.type==="Distribute"&&t.branch===branch&&(t.member===m.memberId||t.member===m.name||t.memberId===m.memberId)&&String(t.year)===year;
+});
+if(!isDistributed){
+remainingTotalSavings+=transactions.filter(function(t){
+return t.type==="Savings"&&t.branch===branch&&(t.member===m.memberId||t.member===m.name||t.memberId===m.memberId);
+}).reduce(function(sum,t){
+return sum+Number(t.amount||0);
+},0);
+}
+});
+var memberSavings=transactions.filter(function(t){
+return t.type==="Savings"&&(t.member===memberId||t.member===memberName||t.memberId===memberId);
+}).reduce(function(sum,t){
+return sum+Number(t.amount||0);
+},0);
+var share=0;
+if(!alreadyDistributed&&currentRemainingPool>0&&remainingTotalSavings>0&&memberSavings>0){
+share=Math.round((currentRemainingPool*memberSavings/remainingTotalSavings)*100)/100;
+}
+var myDistributions=transactions.filter(function(t){
+return t.type==="Distribute"&&t.branch===branch&&(t.member===memberId||t.member===memberName||t.memberId===memberId);
+}).slice().reverse();
+var received=myDistributions.reduce(function(sum,t){
+return sum+Number(t.amount||0);
+},0);
+totalEl.textContent="₹"+share.toLocaleString("en-IN",{minimumFractionDigits:2,maximumFractionDigits:2});
+receivedEl.textContent="₹"+received.toLocaleString("en-IN",{minimumFractionDigits:2,maximumFractionDigits:2});
+list.innerHTML="";
+var history=[];
+if(share>0){
+history.push({type:"Earning Share",amount:share,date:now.toLocaleDateString("en-IN"),description:"Current year "+year+" earning calculation",timestamp:now.getTime()});
+}
+myDistributions.forEach(function(t){
+var date=t.joinDate||t.date||"";
+var timestamp=Number(t.timestamp||0);
+history.push({type:"Distribute",amount:Number(t.amount||0),date:date,description:t.description||"Profit Share - "+(t.year||year),timestamp:timestamp});
+});
+history.sort(function(a,b){return b.timestamp-a.timestamp;});
+if(history.length===0){
+list.innerHTML='<div class="empty">No earnings history found</div>';
+return;
+}
+history.forEach(function(h){
+var div=document.createElement("div");
+div.className="item";
+var left=document.createElement("div");
+var title=document.createElement("b");
+title.textContent=h.type;
+var desc=document.createElement("small");
+desc.textContent=h.description;
+var date=document.createElement("small");
+date.style.color="#777";
+date.textContent="Date: "+h.date;
+left.appendChild(title);
+left.appendChild(document.createElement("br"));
+left.appendChild(desc);
+left.appendChild(document.createElement("br"));
+left.appendChild(date);
+var right=document.createElement("div");
+right.style.textAlign="right";
+var value=document.createElement("b");
+value.style.color="#198754";
+value.style.fontSize="17px";
+value.textContent=(h.type==="Distribute"?"+":"")+"₹"+Number(h.amount||0).toLocaleString("en-IN",{minimumFractionDigits:2,maximumFractionDigits:2});
+right.appendChild(value);
+div.appendChild(left);
+div.appendChild(right);
+list.appendChild(div);
 });
 }
 function renderTransactions(){
@@ -3181,46 +3440,38 @@ function renderDistributions(){
     box.appendChild(div);
   });
 }
-function addDistribute(){     
-    var memberEl = document.getElementById("distributeMember");
-    var memberVal = memberEl ? memberEl.value : "";     
-    var amount = Number(document.getElementById("distributeAmount").value);     
-    var desc = document.getElementById("distributeDescription").value;     
-    var now = new Date();     
-    var currentYear = now.getFullYear().toString();      
-    
-    if(!memberVal || !amount || amount <= 0){         
-        alert("Kripya valid member aur amount select karein!");         
-        return;     }      
-    
-    var memberObj = db.members.find(function(m){ 
-        return m.name === memberVal || m.memberId === memberVal; 
-    });     
-    
-    if(!memberObj) return;      
-    
-    var availableEarnings = getDistributionAvailableBalance();     
-    if(amount > availableEarnings){         
-        alert("Error: Distribution amount available earnings balance (₹" + availableEarnings.toLocaleString("en-IN") + ") se zyada nahi ho sakta!");         
-        return;     }      
-    
-    db.transactions.push({         
-        id: Date.now(), // <-- Yeh line add ki gayi hai taaki har entry ki unique ID bane
-        type: "Distribute",         
-        branch: memberObj.branch,         
-        member: memberObj.name,        
-        amount: amount,         
-        year: currentYear,         
-        description: desc || ("Yearly Profit Distribution - " + currentYear),         
-        joinDate: formatDateDDMMYYYY()     });      
-    
-    saveDB();     
-    alert("Distribution successfully saved!");     
-    document.getElementById("distributeAmount").value = "";     
-    document.getElementById("distributeDescription").value = "";     
-    document.getElementById("distributionShareInfo").style.display = "none";     
-    document.getElementById("distributeMember").value = "";     
-    refreshAll(); 
+function addDistribute(){
+var memberEl=document.getElementById("distributeMember");
+var amountEl=document.getElementById("distributeAmount");
+var descEl=document.getElementById("distributeDescription");
+var memberVal=memberEl?memberEl.value:"";
+var amount=Number(amountEl?amountEl.value:0);
+var desc=descEl?descEl.value:"";
+var now=new Date();
+var currentYear=String(now.getFullYear());
+if(!memberVal||!Number.isFinite(amount)||amount<=0){alert("Kripya valid member aur amount select karein!");return;}
+var memberObj=db.members.find(function(m){return m.name===memberVal||m.memberId===memberVal;});
+if(!memberObj){alert("Member nahi mila!");return;}
+var availableEarnings=db.transactions.filter(function(t){return t.branch===memberObj.branch;}).reduce(function(total,t){
+if(t.type==="EMI Collect")return total+Number(t.interest||0);
+if(t.type==="Other IN"||t.type==="Others IN")return total+Number(t.amount||0);
+if(t.type==="Other OUT"||t.type==="Others OUT")return total-Number(t.amount||0);
+if(t.type==="Distribute")return total-Number(t.amount||0);
+return total;
+},0);
+availableEarnings=Math.max(0,availableEarnings);
+if(amount>availableEarnings){alert("Branch ki available earning ₹"+availableEarnings.toLocaleString("en-IN")+" hai. Isse zyada distribute nahi kar sakte.");return;}
+var alreadyDistributed=db.transactions.some(function(t){return t.type==="Distribute"&&t.branch===memberObj.branch&&String(t.year)===currentYear&&(t.member===memberObj.memberId||t.member===memberObj.name||t.memberId===memberObj.memberId);});
+if(alreadyDistributed){alert("Is member ko is saal distribution mil chuka hai!");return;}
+db.transactions.push({id:Date.now(),type:"Distribute",branch:memberObj.branch,member:memberObj.name,memberId:memberObj.memberId,amount:amount,year:currentYear,description:desc||("Yearly Profit Distribution - "+currentYear),joinDate:formatDateDDMMYYYY(),date:formatDateDDMMYYYY(),time:now.toLocaleTimeString("en-IN"),timestamp:now.getTime()});
+saveDB();
+alert("Member ka earning share successfully distribute ho gaya!");
+if(amountEl)amountEl.value="";
+if(descEl)descEl.value="";
+var info=document.getElementById("distributionShareInfo");
+if(info)info.style.display="none";
+if(memberEl)memberEl.value="";
+refreshAll();
 }
 function deleteTransaction(id) {
 
@@ -4191,11 +4442,544 @@ onAuthStateChanged(
   }
 
 );
-
-
-console.log(
-  "SIRZON Firebase system ready"
-);
+window.getSirzonEarningData=function(memberId,year=new Date().getFullYear()){
+const data=window.db||db;
+const transactions=data.transactions||[];
+const members=data.members||[];
+const member=members.find(m=>String(m.id||m.code||m.memberId)===String(memberId));
+if(!member)return{share:0,received:0,history:[]};
+const memberBranch=member.branchId||member.branchCode||member.branch||"";
+const activeMembers=members.filter(m=>{
+const status=String(m.status||"Active").toLowerCase();
+const branch=m.branchId||m.branchCode||m.branch||"";
+return status==="active"&&String(branch)===String(memberBranch);
+});
+const incomeTransactions=transactions.filter(t=>{
+const type=String(t.type||"").toLowerCase();
+const category=String(t.category||t.description||"").toLowerCase();
+const date=new Date(t.timestamp||t.date||t.createdAt||0);
+const sameBranch=!t.branchId&&!t.branchCode&&!t.branch?true:String(t.branchId||t.branchCode||t.branch)===String(memberBranch);
+if(!sameBranch||Number.isNaN(date.getTime())||date.getFullYear()!==Number(year))return false;
+if(type==="interest")return Number(t.amount||0)>0;
+if(type==="emi")return Number(t.interest||t.interestAmount||0)>0;
+return(type==="other in"||type==="otherin"||type==="other_in"||(type==="other"&&(category.includes("in")||category.includes("income"))))&&Number(t.amount||0)>0;
+});
+const getSavings=m=>{
+if(Number.isFinite(Number(m.savingsAmount)))return Math.max(0,Number(m.savingsAmount));
+if(Number.isFinite(Number(m.totalSavings)))return Math.max(0,Number(m.totalSavings));
+return transactions.filter(t=>String(t.memberId||t.member||t.code)===String(m.id||m.code||m.memberId)&&String(t.type||"").toLowerCase().includes("saving")).reduce((s,t)=>s+Number(t.amount||0),0);
+};
+const totalSavings=activeMembers.reduce((s,m)=>s+getSavings(m),0);
+const memberSavings=getSavings(member);
+const history=incomeTransactions.map(t=>{
+const type=String(t.type||"").toLowerCase();
+const amount=type==="emi"?Number(t.interest||t.interestAmount||0):Number(t.amount||0);
+const share=totalSavings>0?amount*memberSavings/totalSavings:0;
+return{id:t.id||t.timestamp||t.date,date:t.date||t.timestamp||t.createdAt||"",source:t.type||t.description||"Income",amount,share,year:Number(year)};
+});
+const distributed=transactions.filter(t=>{
+const type=String(t.type||"").toLowerCase();
+const date=new Date(t.timestamp||t.date||t.createdAt||0);
+return(type==="distribute"||type==="distribution")&&String(t.memberId||t.member||t.code)===String(memberId)&&!Number.isNaN(date.getTime())&&date.getFullYear()===Number(year);
+}).reduce((s,t)=>s+Number(t.amount||0),0);
+const totalShare=history.reduce((s,h)=>s+h.share,0);
+return{share:Math.max(0,totalShare-distributed),received:distributed,history};
+};
+// SIRZON SETTINGS - FIREBASE
+const sirzonSettingsRef=doc(firestoreDB,"system","settings");
+const defaultSirzonSettings={savingType:"Weekly",savingAmount:100,customSavingAmount:100,weekDay:"Sunday",weeklyInterest:0,monthlyInterest:0};
+window.sirzonSettings={...defaultSirzonSettings};
+window.loadSirzonSettings=async function(){
+try{
+const snapshot=await getDoc(sirzonSettingsRef);
+const data=snapshot.exists()?snapshot.data():{};
+const {language,...settingsData}=data;
+window.sirzonSettings={...defaultSirzonSettings,...settingsData};
+window.applySirzonSettingsToForm();
+return window.sirzonSettings;
+}catch(error){
+console.error("Settings load error:",error);
+throw error;
+}
+};
+window.openSirzonSettings=async function(){
+const modal=document.getElementById("sirzonSettingsModal");
+const message=document.getElementById("sirzonSettingsMessage");
+if(!modal||!message)return;
+modal.style.display="flex";
+message.textContent="Loading settings...";
+try{
+await window.loadSirzonSettings();
+message.textContent="";
+}catch(error){
+message.textContent="Settings load nahi hui. Internet aur Firebase check karein.";
+}
+};
+window.closeSirzonSettings=function(){
+const modal=document.getElementById("sirzonSettingsModal");
+if(modal)modal.style.display="none";
+};
+window.applySirzonSettingsToForm=function(){
+const s=window.sirzonSettings;
+const savingType=document.getElementById("settingSavingType");
+const amountSelect=document.getElementById("settingSavingAmount");
+const customBox=document.getElementById("customSavingAmountBox");
+const customInput=document.getElementById("settingCustomSavingAmount");
+const weekDay=document.getElementById("settingWeekDay");
+const weeklyInterest=document.getElementById("settingWeeklyInterest");
+const monthlyInterest=document.getElementById("settingMonthlyInterest");
+if(!savingType||!amountSelect||!customBox||!customInput||!weekDay||!weeklyInterest||!monthlyInterest){
+console.error("Settings form elements missing.");
+return;
+}
+savingType.value=s.savingType||"Weekly";
+const amount=Number(s.savingAmount??100);
+const presetAmounts=[10,20,30,40,50,100,200,300,400,500];
+if(presetAmounts.includes(amount)){
+amountSelect.value=String(amount);
+customBox.style.display="none";
+}else{
+amountSelect.value="Custom";
+customBox.style.display="block";
+customInput.value=amount;
+}
+weekDay.value=s.weekDay||"Sunday";
+weeklyInterest.value=s.weeklyInterest??0;
+monthlyInterest.value=s.monthlyInterest??0;
+window.updateSirzonWeekDayVisibility();
+};
+window.updateCustomSavingAmount=function(){
+const select=document.getElementById("settingSavingAmount");
+const box=document.getElementById("customSavingAmountBox");
+if(select&&box)box.style.display=select.value==="Custom"?"block":"none";
+};
+window.updateSirzonWeekDayVisibility=function(){
+const type=document.getElementById("settingSavingType");
+const box=document.getElementById("settingWeekDayBox");
+if(type&&box)box.style.display=type.value==="Weekly"?"block":"none";
+};
+window.saveSirzonSettings=async function(){
+const message=document.getElementById("sirzonSettingsMessage");
+if(!message)return;
+const savingType=document.getElementById("settingSavingType")?.value;
+const amountChoice=document.getElementById("settingSavingAmount")?.value;
+const customValue=document.getElementById("settingCustomSavingAmount")?.value;
+const savingAmount=amountChoice==="Custom"?Number(customValue):Number(amountChoice);
+const weeklyInterest=Number(document.getElementById("settingWeeklyInterest")?.value);
+const monthlyInterest=Number(document.getElementById("settingMonthlyInterest")?.value);
+const weekDay=document.getElementById("settingWeekDay")?.value;
+if(!["Weekly","Monthly"].includes(savingType)){
+message.textContent="Saving Type select karein.";
+return;
+}
+if(!Number.isFinite(savingAmount)||savingAmount<=0){
+message.textContent="Valid Saving Amount enter karein.";
+return;
+}
+if(!Number.isFinite(weeklyInterest)||weeklyInterest<0||weeklyInterest>100){
+message.textContent="Weekly interest 0 se 100% ke beech hona chahiye.";
+return;
+}
+if(!Number.isFinite(monthlyInterest)||monthlyInterest<0||monthlyInterest>100){
+message.textContent="Monthly interest 0 se 100% ke beech hona chahiye.";
+return;
+}
+const validWeekDays=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+if(!validWeekDays.includes(weekDay)){
+message.textContent="Valid Week Day select karein.";
+return;
+}
+const settings={
+savingType,
+savingAmount,
+customSavingAmount:amountChoice==="Custom"?savingAmount:100,
+weekDay,
+weeklyInterest,
+monthlyInterest,
+updatedAt:new Date().toISOString()
+};
+message.textContent="Saving...";
+try{
+await setDoc(sirzonSettingsRef,settings,{merge:true});
+window.sirzonSettings={...defaultSirzonSettings,...window.sirzonSettings,...settings};
+message.textContent="Settings Firebase mein save ho gayi.";
+}catch(error){
+console.error("Settings save error:",error);
+message.textContent="Settings save nahi hui: "+error.message;
+}
+};
+window.openSirzonTerms=function(){
+const modal=document.getElementById("sirzonTermsModal");
+if(modal)modal.style.display="flex";
+};
+window.closeSirzonTerms=function(){
+const modal=document.getElementById("sirzonTermsModal");
+if(modal)modal.style.display="none";
+};
+// SIRZON LANGUAGE - FIREBASE
+window.sirzonLanguage="Hindi";
+window.loadSirzonLanguage=async function(){
+try{
+const snapshot=await getDoc(sirzonSettingsRef);
+const data=snapshot.exists()?snapshot.data():{};
+window.sirzonLanguage=data.language||"Hindi";
+const select=document.getElementById("sirzonLanguageSelect");
+if(select)select.value=window.sirzonLanguage;
+return window.sirzonLanguage;
+}catch(error){
+console.error("Language load error:",error);
+throw error;
+}
+};
+window.openSirzonLanguage=async function(){
+const modal=document.getElementById("sirzonLanguageModal");
+const message=document.getElementById("sirzonLanguageMessage");
+if(!modal)return;
+modal.style.display="flex";
+if(message)message.textContent="Loading language...";
+try{
+await window.loadSirzonLanguage();
+if(message)message.textContent="";
+}catch(error){
+if(message)message.textContent="Language load nahi hui. Internet aur Firebase check karein.";
+}
+};
+window.closeSirzonLanguage=function(){
+const modal=document.getElementById("sirzonLanguageModal");
+if(modal)modal.style.display="none";
+};
+window.saveSirzonLanguage=async function(){
+const message=document.getElementById("sirzonLanguageMessage");
+const language=document.getElementById("sirzonLanguageSelect")?.value;
+if(!["Hindi","English","Santali"].includes(language)){
+if(message)message.textContent="Valid Language select karein.";
+return;
+}
+if(message)message.textContent="Saving language...";
+try{
+await setDoc(sirzonSettingsRef,{language,languageUpdatedAt:new Date().toISOString()},{merge:true});
+window.sirzonLanguage=language;
+if(message)message.textContent="Language Firebase mein save ho gayi.";
+}catch(error){
+console.error("Language save error:",error);
+if(message)message.textContent="Language save nahi hui: "+error.message;
+}
+};
+window.firebaseDBReady.then(async()=>{
+await window.loadSirzonSettings();
+await window.loadSirzonLanguage();
+}).catch(error=>console.error("Initial Firebase settings load error:",error));
+// SIRZON TERMS & CONDITIONS
+const sirzonTermsRef=doc(firestoreDB,"system","terms");
+window.sirzonTerms=[];
+window.editingRuleIndex=-1;
+// GET CURRENT USER
+window.getSirzonTermsUser=function(){
+return window.currentUser||window.currentUserData||window.loggedInUser||window.currentUserInfo||{};
+};
+// CHECK ADMIN AND MANAGER PERMISSION
+window.canManageSirzonTerms=function(){
+const user=window.getSirzonTermsUser();
+const rawRole=String(user.role||user.type||user.userType||user.code||user.userCode||"").toUpperCase().trim();
+const role=rawRole.split(/[-_ ]/)[0];
+return role==="AD"||role==="BR";
+};
+// SIRZON SETTINGS ROLE PERMISSIONS
+window.canManageSirzonSettings=function(){
+const user=window.currentUser||window.currentUserData||window.loggedInUser||window.currentUserInfo||{};
+const role=String(user.role||user.type||user.userType||user.code||user.username||"").toUpperCase().trim();
+return role==="AD"||role==="BR";
+};
+window.updateSirzonSettingsPermissions=function(){
+const allowed=window.canManageSirzonSettings();
+const modal=document.getElementById("sirzonSettingsModal");
+const saveBtn=document.getElementById("saveSirzonSettingsBtn");
+const cancelBtn=document.getElementById("cancelSirzonSettingsBtn");
+if(saveBtn)saveBtn.style.display=allowed?"":"none";
+if(cancelBtn)cancelBtn.style.display=allowed?"":"none";
+if(modal){
+modal.querySelectorAll("input,select,textarea").forEach(el=>{
+el.disabled=!allowed;
+});
+}
+};
+// SETTINGS OPEN PERMISSIONS
+window.openSirzonSettings=async function(){
+const modal=document.getElementById("sirzonSettingsModal");
+const message=document.getElementById("sirzonSettingsMessage");
+if(!modal||!message)return;
+modal.style.display="flex";
+window.updateSirzonSettingsPermissions();
+message.textContent="Loading settings...";
+try{
+await window.loadSirzonSettings();
+window.updateSirzonSettingsPermissions();
+message.textContent="";
+}catch(error){
+console.error("Settings load error:",error);
+message.textContent="Settings load nahi hui. Internet aur Firebase check karein.";
+}
+};
+// OPEN TERMS MODAL
+window.openSirzonTerms=async function(){
+const modal=document.getElementById("sirzonTermsModal");
+if(modal)modal.style.display="flex";
+try{
+await window.firebaseDBReady;
+await window.loadSirzonTerms();
+window.updateSirzonTermsPermissions();
+}catch(e){
+console.error("Terms load error:",e);
+alert("Terms load nahi hua: "+e.message);
+}
+};
+// CLOSE TERMS MODAL
+window.closeSirzonTerms=function(){
+const modal=document.getElementById("sirzonTermsModal");
+if(modal)modal.style.display="none";
+};
+// LOAD TERMS FROM FIRESTORE
+window.loadSirzonTerms=async function(){
+await window.firebaseDBReady;
+const snap=await getDoc(sirzonTermsRef);
+const data=snap.exists()?snap.data():{};
+window.sirzonTerms=Array.isArray(data.conditions)?data.conditions:[];
+window.renderSavedRules();
+return window.sirzonTerms;
+};
+// RENDER SAVED RULES
+window.renderSavedRules=function(){
+const box=document.getElementById("sirzonSavedRules");
+if(!box)return;
+box.replaceChildren();
+const canManage=window.canManageSirzonTerms();
+if(!window.sirzonTerms.length){
+const empty=document.createElement("p");
+empty.textContent="Abhi koi Terms & Conditions add nahi kiya gaya hai.";
+empty.style.cssText="text-align:center;color:#666;padding:12px;";
+box.appendChild(empty);
+}
+window.sirzonTerms.forEach((rule,index)=>{
+const card=document.createElement("div");
+card.style.cssText="border:1px solid #ddd;border-radius:10px;padding:12px;margin-bottom:12px;";
+const title=document.createElement("h3");
+title.textContent=(index+1)+". "+(rule.title||"Title Name");
+title.style.cssText="margin:0 0 12px;";
+card.appendChild(title);
+const descriptions=Array.isArray(rule.descriptions)?rule.descriptions:[];
+descriptions.forEach((description,i)=>{
+const p=document.createElement("p");
+p.textContent=(index+1)+"."+(i+1)+" "+description;
+p.style.cssText="margin:8px 0;";
+card.appendChild(p);
+});
+if(canManage){
+const actions=document.createElement("div");
+actions.className="sirzonRuleActions";
+actions.style.cssText="display:flex;gap:10px;margin-top:12px;";
+const edit=document.createElement("button");
+edit.type="button";
+edit.textContent="Edit";
+edit.style.cssText="padding:8px 16px;border:0;border-radius:6px;background:#198754;color:white;";
+edit.onclick=()=>window.openNewRulePage(index);
+const remove=document.createElement("button");
+remove.type="button";
+remove.textContent="Remove";
+remove.style.cssText="padding:8px 16px;border:0;border-radius:6px;background:#dc3545;color:white;";
+remove.onclick=()=>window.removeSirzonRule(index);
+actions.append(edit,remove);
+card.appendChild(actions);
+}
+box.appendChild(card);
+});
+window.updateSirzonTermsPermissions();
+};
+// UPDATE TERMS PERMISSIONS IN UI
+window.updateSirzonTermsPermissions=function(){
+const allowed=window.canManageSirzonTerms();
+const addBox=document.getElementById("sirzonAddRulesBox");
+if(addBox)addBox.style.display=allowed?"block":"none";
+document.querySelectorAll("#sirzonSavedRules .sirzonRuleActions").forEach(el=>{
+el.style.display=allowed?"flex":"none";
+});
+};
+// REMOVE RULE
+window.removeSirzonRule=async function(index){
+if(!window.canManageSirzonTerms()){
+alert("Aapko is action ki permission nahi hai.");
+return;
+}
+if(!Number.isInteger(index)||index<0||index>=window.sirzonTerms.length){
+alert("Rule nahi mila.");
+return;
+}
+if(!confirm("Kya aap is Rule ko Remove karna chahte hain?"))return;
+const oldTerms=JSON.parse(JSON.stringify(window.sirzonTerms));
+window.sirzonTerms.splice(index,1);
+try{
+await setDoc(sirzonTermsRef,{conditions:window.sirzonTerms,updatedAt:new Date().toISOString()},{merge:true});
+window.renderSavedRules();
+}catch(e){
+window.sirzonTerms=oldTerms;
+window.renderSavedRules();
+console.error("Terms remove error:",e);
+alert("Remove nahi hua: "+e.message);
+}
+};
+// OPEN ADD / EDIT RULE PAGE
+window.openNewRulePage=function(index=-1){
+if(!window.canManageSirzonTerms()){
+alert("Aapko is action ki permission nahi hai.");
+return;
+}
+if(!window.canManageSirzonTerms()){
+alert("Aapko Settings save karne ki permission nahi hai.");
+return;
+}
+const page=document.getElementById("sirzonRulePage");
+const titleInput=document.getElementById("sirzonRuleTitle");
+const descriptions=document.getElementById("sirzonRuleDescriptions");
+const message=document.getElementById("sirzonRuleMessage");
+const pageTitle=document.getElementById("sirzonRulePageTitle");
+if(!page||!titleInput||!descriptions||!message||!pageTitle){
+alert("Rule page ke HTML elements nahi mile. IDs check karein.");
+return;
+}
+if(index!==-1&&(!Number.isInteger(index)||index<0||index>=window.sirzonTerms.length)){
+alert("Edit karne wala Rule nahi mila.");
+return;
+}
+window.editingRuleIndex=index;
+descriptions.replaceChildren();
+message.textContent="";
+if(index>=0){
+const rule=window.sirzonTerms[index];
+titleInput.value=rule.title||"";
+pageTitle.textContent="Edit Rules";
+const oldDescriptions=Array.isArray(rule.descriptions)?rule.descriptions:[];
+if(oldDescriptions.length){
+oldDescriptions.forEach(text=>window.addRuleDescription(text));
+}else{
+window.addRuleDescription("");
+}
+}else{
+titleInput.value="";
+pageTitle.textContent="Add Rules";
+window.addRuleDescription("");
+}
+page.style.display="flex";
+};
+// CLOSE ADD / EDIT RULE PAGE
+window.closeNewRulePage=function(){
+const page=document.getElementById("sirzonRulePage");
+if(page)page.style.display="none";
+};
+// ADD DESCRIPTION ROW
+window.addRuleDescription=function(value=""){
+if(!window.canManageSirzonTerms()){
+alert("Aapko is action ki permission nahi hai.");
+return;
+}
+const box=document.getElementById("sirzonRuleDescriptions");
+if(!box)return;
+const row=document.createElement("div");
+row.style.cssText="display:flex;gap:8px;align-items:center;margin-bottom:12px;";
+const number=document.createElement("span");
+number.style.cssText="min-width:42px;font-weight:bold;";
+const textarea=document.createElement("textarea");
+textarea.className="sirzonRuleDescription";
+textarea.placeholder="Rule description likhein...";
+textarea.value=value;
+textarea.style.cssText="flex:1;min-width:0;min-height:70px;padding:10px;border:1px solid #ccc;border-radius:8px;";
+const remove=document.createElement("button");
+remove.type="button";
+remove.textContent="×";
+remove.setAttribute("aria-label","Remove description");
+remove.style.cssText="font-size:22px;border:0;background:none;color:#c00;cursor:pointer;";
+remove.onclick=function(){
+row.remove();
+window.updateRuleNumbers();
+};
+row.append(number,textarea,remove);
+box.appendChild(row);
+window.updateRuleNumbers();
+};
+// UPDATE DESCRIPTION NUMBERS
+window.updateRuleNumbers=function(){
+const rows=[...document.querySelectorAll("#sirzonRuleDescriptions .sirzonRuleDescription")];
+const ruleNumber=window.editingRuleIndex>=0?window.editingRuleIndex+1:window.sirzonTerms.length+1;
+rows.forEach((textarea,index)=>{
+if(textarea.previousElementSibling){
+textarea.previousElementSibling.textContent=ruleNumber+"."+(index+1);
+}
+});
+};
+// SAVE NEW OR EDITED RULE
+window.saveNewRule=async function(){
+if(!window.canManageSirzonTerms()){
+alert("Aapko is action ki permission nahi hai.");
+return;
+}
+const message=document.getElementById("sirzonRuleMessage");
+const titleInput=document.getElementById("sirzonRuleTitle");
+const saveButton=document.querySelector('#sirzonRulePage button[onclick="window.saveNewRule()"]');
+if(!message||!titleInput){
+alert("Rule form nahi mila.");
+return;
+}
+const title=titleInput.value.trim();
+const descriptions=[...document.querySelectorAll("#sirzonRuleDescriptions .sirzonRuleDescription")].map(x=>x.value.trim()).filter(Boolean);
+if(!title){
+message.textContent="Title Name likhein.";
+return;
+}
+if(!descriptions.length){
+message.textContent="Kam se kam ek Rule description likhein.";
+return;
+}
+const oldTerms=JSON.parse(JSON.stringify(window.sirzonTerms));
+const oldIndex=window.editingRuleIndex;
+if(oldIndex>=0){
+if(oldIndex>=window.sirzonTerms.length){
+message.textContent="Rule nahi mila. Dobara open karein.";
+return;
+}
+window.sirzonTerms[oldIndex]={title,descriptions};
+}else{
+window.sirzonTerms.push({title,descriptions});
+}
+if(saveButton)saveButton.disabled=true;
+message.textContent="Saving...";
+try{
+await setDoc(sirzonTermsRef,{conditions:window.sirzonTerms,updatedAt:new Date().toISOString()},{merge:true});
+window.renderSavedRules();
+window.closeNewRulePage();
+}catch(e){
+window.sirzonTerms=oldTerms;
+window.renderSavedRules();
+console.error("Terms save error:",e);
+message.textContent="Save nahi hua: "+e.message;
+}finally{
+if(saveButton)saveButton.disabled=false;
+}
+};
+// SETTINGS SAVE BUTTON PERMISSION
+window.updateSettingsPermissions=function(){
+const allowed=window.canManageSirzonTerms();
+const btn=document.getElementById("saveSettingsBtn");
+if(btn)btn.style.display=allowed?"":"none";
+};
+// UPDATE ALL PERMISSIONS AFTER LOGIN
+window.updateSirzonPermissions=function(){
+window.updateSirzonTermsPermissions();
+window.updateSettingsPermissions();
+};
+// LOAD TERMS AFTER FIREBASE IS READY
+window.firebaseDBReady.then(async()=>{
+await window.loadSirzonTerms();
+window.updateSirzonPermissions();
+}).catch(e=>console.error("Terms initialization error:",e));
+console.log("SIRZON Terms system ready");
 
 </script>
 </body>
