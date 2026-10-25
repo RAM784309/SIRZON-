@@ -99,6 +99,24 @@ button{ border:0; border-radius:10px; padding:13px 18px; cursor:pointer; }
 @media(max-width:500px){
 .cards{ grid-template-columns:1fr 1fr; }
 }
+/* LOAN PAGE - FULL WIDTH ACTIVE LOAN CARD */
+#loanPageMember .cards{
+    grid-template-columns:1fr;
+}
+#loanPageMember .card{
+    width:100%;
+    box-sizing:border-box;
+}
+#loanPageMember .card{
+    width:100%;
+    box-sizing:border-box;
+    text-align:center;
+}
+#loanPageMember .card .card-title,
+#loanPageMember .card .card-value{
+    text-align:center;
+    width:100%;
+}
 </style>
 </head>
 <body>
@@ -184,9 +202,15 @@ button{ border:0; border-radius:10px; padding:13px 18px; cursor:pointer; }
 <div class="page-title">Member Dashboard</div>
 <div class="real-time-badge" id="memberRealTimeBadge">September 2026</div>
 </div>
-<div class="welcome" style="text-align:center;">
+<div class="cards" style="margin-bottom:15px;">
+<div class="card" style="text-align:center;">
 <div class="card-title"> Total Savings </div>
 <div class="card-value" id="memberDashboardSavings"> ₹0 </div>
+</div>
+<div class="card" style="text-align:center;">
+<div class="card-title"> Current Savings </div>
+<div class="card-value" id="memberDashboardCurrentSavings"> ₹0 </div>
+</div>
 </div>
 <div class="cards">
 <div class="card">
@@ -220,8 +244,8 @@ button{ border:0; border-radius:10px; padding:13px 18px; cursor:pointer; }
 <div class="card-value" id="totalSavings"> ₹0 </div>
 </div>
 <div class="card">
-<div class="card-title"> Available Savings </div>
-<div class="card-value" id="availableSavings"> ₹0 </div>
+<div class="card-title"> Current Savings </div>
+<div class="card-value" id="currentMonthSavings"> ₹0 </div>
 </div>
 <div class="card">
 <div class="card-title"> Earnings Balance </div>
@@ -2349,6 +2373,20 @@ element.addEventListener("mousedown", startPress);
 element.addEventListener("mouseup", cancelPress);
 element.addEventListener("mouseleave", cancelPress);
 }
+function isCurrentMonthTransaction(transaction){
+var dateText = String(transaction.date || transaction.joinDate || "");
+var match = dateText.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+var transactionDate;
+if(match){
+transactionDate = new Date(Number(match[3]), Number(match[2]) - 1, Number(match[1]));
+} else {
+transactionDate = new Date(dateText);
+}
+var now = new Date();
+return !Number.isNaN(transactionDate.getTime()) &&
+transactionDate.getMonth() === now.getMonth() &&
+transactionDate.getFullYear() === now.getFullYear();
+}
 function refreshAll(){
 if(currentUser && currentUser.role === "MB"){
 refreshMemberDashboard();
@@ -2374,6 +2412,10 @@ if(currentUser && currentUser.role === "BR"){
     });
 }
 var savingsAmount = visibleTransactions.filter(function(t){ return t.type === "Savings"; }).reduce(function(sum,t){ return sum + Number(t.amount || 0); }, 0);
+
+var currentMonthSavings = visibleTransactions.filter(function(t){
+return t.type === "Savings" && isCurrentMonthTransaction(t);
+}).reduce(function(sum,t){ return sum + Number(t.amount || 0); }, 0);
 
 var principalEMI = visibleTransactions.filter(function(t){ return t.type === "EMI Collect"; }).reduce(function(sum,t){ return sum + Number(t.principal || 0); }, 0);
 
@@ -2409,6 +2451,8 @@ var activeLoanBalance = visibleLoans.filter(function(l){
 
 }, 0);
 
+currentMonthSavings = savingsAmount - activeLoanBalance;
+
 // Manager ke liye sirf self branch ke members count honge, Admin ke liye sabhi
 var membersCount = db.members.length;
 if(currentUser && currentUser.role === "BR"){
@@ -2417,6 +2461,7 @@ membersCount = db.members.filter(function(m){ return m.branch === currentUser.br
 
 if(document.getElementById("totalBalance")) document.getElementById("totalBalance").innerText = "₹" + totalBalance.toLocaleString("en-IN");
 if(document.getElementById("totalSavings")) document.getElementById("totalSavings").innerText = "₹" + savingsAmount.toLocaleString("en-IN");
+if(document.getElementById("currentMonthSavings")) document.getElementById("currentMonthSavings").innerText = "₹" + currentMonthSavings.toLocaleString("en-IN");
 if(document.getElementById("availableSavings")) document.getElementById("availableSavings").innerText = "₹" + availableSavings.toLocaleString("en-IN");
 if(document.getElementById("totalRemainingBalance")) document.getElementById("totalRemainingBalance").innerText = "₹" + earningsBalance.toLocaleString("en-IN");
 if(document.getElementById("totalLoan")) document.getElementById("totalLoan").innerText = "₹" + activeLoanBalance.toLocaleString("en-IN");
@@ -2455,6 +2500,47 @@ t.type === "Savings" &&
 }).reduce(function(sum, t){
 return sum + Number(t.amount || 0);
 }, 0);
+var memberCurrentSavings = db.transactions.filter(function(t){
+return (
+t.type === "Savings" &&
+isCurrentMonthTransaction(t) &&
+(t.member === memberId || t.member === memberName)
+);
+}).reduce(function(sum, t){
+return sum + Number(t.amount || 0);
+}, 0);
+
+var memberRecord = myMember || db.members.find(function(m){
+return m.memberId === memberId || m.name === memberName;
+});
+
+if(memberRecord){
+var branch = memberRecord.branch;
+var currentYear = String(new Date().getFullYear());
+var branchMembers = db.members.filter(function(m){
+return m.branch === branch;
+});
+var totalBranchSavings = db.transactions.filter(function(t){
+return t.type === "Savings" && t.branch === branch;
+}).reduce(function(sum, t){
+return sum + Number(t.amount || 0);
+}, 0);
+var branchActiveLoanBalance = db.loans.filter(function(loan){
+return loan.branch === branch && loan.status === "Active";
+}).reduce(function(total, loan){
+var paidPrincipal = db.transactions.filter(function(t){
+return t.type === "EMI Collect" && t.loanId === loan.id;
+}).reduce(function(sum, t){
+return sum + Number(t.principal || 0);
+}, 0);
+return total + Math.max(0, Number(loan.amount || 0) - paidPrincipal);
+}, 0);
+var branchCurrentSavings = totalBranchSavings - branchActiveLoanBalance;
+memberCurrentSavings = totalBranchSavings > 0
+? (branchCurrentSavings / totalBranchSavings) * memberSavings
+: 0;
+}
+
 var memberDistribute = db.transactions.filter(function(t){
 return (
 t.type === "Distribute" &&
@@ -2476,6 +2562,7 @@ return t.type === "EMI Collect" && t.loanId === l.id;
 return sum + Math.max(0, Number(l.amount || 0) - paidPrincipal);
 }, 0);
 if(document.getElementById("memberDashboardSavings")) document.getElementById("memberDashboardSavings").innerText = "₹" + memberSavings.toLocaleString("en-IN");
+if(document.getElementById("memberDashboardCurrentSavings")) document.getElementById("memberDashboardCurrentSavings").innerText = "₹" + memberCurrentSavings.toLocaleString("en-IN");
 if(document.getElementById("memberDashboardLoan")) document.getElementById("memberDashboardLoan").innerText = "₹" + activeLoanTotal.toLocaleString("en-IN");
 if(document.getElementById("memberDashboardEarnings")) document.getElementById("memberDashboardEarnings").innerText = "₹" + memberDistribute.toLocaleString("en-IN");
 if(document.getElementById("memberSavingsVal")) document.getElementById("memberSavingsVal").innerText = "₹" + memberSavings.toLocaleString("en-IN");
