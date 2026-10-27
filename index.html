@@ -96,6 +96,14 @@ button{ border:0; border-radius:10px; padding:13px 18px; cursor:pointer; }
 .cancel-password{ background:#6c757d; color:white; }
 .change-password-btn{ background:#198754; color:white; }
 .empty{ background:white; padding:20px; text-align:center; border-radius:12px; color:#777; }
+.savings-schedule{ margin-top:15px; overflow-x:auto; }
+.savings-schedule table{ width:100%; border-collapse:collapse; background:white; border-radius:10px; overflow:hidden; font-size:13px; }
+.savings-schedule th,.savings-schedule td{ padding:10px 8px; border-bottom:1px solid #e8e8e8; text-align:left; white-space:nowrap; }
+.savings-schedule th{ background:#e1f3e6; color:#087a32; }
+.savings-status{ font-weight:bold; }
+.savings-status.deposited{ color:#198754; }
+.savings-status.missed{ color:#dc3545; }
+.savings-status.pending{ color:#777; }
 @media(max-width:500px){
 .cards{ grid-template-columns:1fr 1fr; }
 }
@@ -170,9 +178,6 @@ button{ border:0; border-radius:10px; padding:13px 18px; cursor:pointer; }
 <div class="nav" id="navMenu">
 <button type="button" onclick="openSirzonSettings()">
   ⚙️ Settings
-</button>
-<button type="button" onclick="openSirzonLanguage()">
-  🌐 Language
 </button>
 <button type="button" onclick="openSirzonTerms()">
   📜 Terms & Conditions
@@ -273,9 +278,10 @@ button{ border:0; border-radius:10px; padding:13px 18px; cursor:pointer; }
 </select>
 <label>Select Member</label>
 <input type="text" id="searchSavMember" placeholder="Search member..." oninput="filterDropdown('searchSavMember','savMember')">
-<select id="savMember">
+<select id="savMember" onchange="renderWeeklySavingsSchedule()">
 <option value=""> Select Branch First </option>
 </select>
+<div id="weeklySavingsSchedule" class="savings-schedule"></div>
 <label>Amount</label>
 <input id="amtSavings" type="number" placeholder="Enter amount">
 <button class="login-btn" onclick="addSavingsTrans()"> Submit Saving </button>
@@ -295,8 +301,8 @@ button{ border:0; border-radius:10px; padding:13px 18px; cursor:pointer; }
 </select>
 <label>Loan Amount</label>
 <input id="amtLoan" type="number" placeholder="Enter amount" oninput="calculateLoanEmiPreview()">
-<label>Interest Rate (%)</label>
-<input id="loanInterestRate" type="number" placeholder="Enter interest rate %" value="10" oninput="calculateLoanEmiPreview()">
+<label>Interest Rate (%) — From Settings</label>
+<input id="loanInterestRate" type="number" readonly placeholder="Set weekly/monthly interest in Settings" style="background:#f1f1f1;cursor:not-allowed;">
 <label>Duration Type</label>
 <select id="loanDurationType" onchange="calculateLoanEmiPreview()">
 <option value="Weeks">Weeks</option>
@@ -632,40 +638,6 @@ Submit Others
 
   </div>
 </div>
-<!-- SIRZON LANGUAGE MODAL -->
-<div id="sirzonLanguageModal" class="modal-overlay">
-  <div class="modal-box">
-
-    <div class="modal-header">
-      <h3>🌐 Language</h3>
-      <button type="button" onclick="closeSirzonLanguage()">✕</button>
-    </div>
-
-    <label for="sirzonLanguageSelect">Select Language</label>
-
-    <select id="sirzonLanguageSelect">
-      <option value="Hindi">हिंदी</option>
-      <option value="English">English</option>
-      <option value="Santali">Santali</option>
-    </select>
-
-    <button type="button"
-            class="login-btn"
-            style="margin-top:12px;"
-            onclick="saveSirzonLanguage()">
-      Save Language
-    </button>
-
-    <button type="button"
-            style="width:100%;margin-top:8px;background:#eee;"
-            onclick="closeSirzonLanguage()">
-      Cancel
-    </button>
-
-    <p id="sirzonLanguageMessage" style="margin-top:12px;"></p>
-
-  </div>
-</div>
 <div id="sirzonTermsModal" class="modal-overlay">
 <div class="modal-box" style="width:100%;max-width:600px;height:90vh;display:flex;flex-direction:column;padding:16px;">
 <div style="display:flex;justify-content:space-between;align-items:center;">
@@ -699,6 +671,7 @@ Submit Others
 </div>
 <script>
 /* ===================================================== DATABASE ===================================================== */
+// Shared app data; Firebase loads and saves this same structure.
 var db = {
   users: [],
   branches: [],
@@ -1115,6 +1088,7 @@ document.getElementById("loginForm").style.display = "block";
 document.getElementById("registerForm").style.display = "none";
 }
 /* ===================================================== NAVIGATION ===================================================== */
+// Show one app page and keep the bottom navigation in sync.
 function openPage(pageId, button){
 document.querySelectorAll(".page").forEach(function(page){
 page.style.display = "none";
@@ -1195,13 +1169,15 @@ var memberSelect = document.getElementById(memberSelectId);
 if(!branchEl || !memberSelect){ return; }
 var selectedBranch = branchEl.value;
 memberSelect.innerHTML = '<option value="">Select Member</option>';
-if(!selectedBranch){ return; }
+if(selectedBranch){
 db.members.filter(function(m){ 
     return m.branch === selectedBranch; 
 }).forEach(function(m){ 
     // Yahan m.name ki jagah m.memberId karein:
     memberSelect.innerHTML += '<option value="' + m.memberId + '">' + m.name + " - " + m.memberId + "</option>"; 
 });
+}
+if(memberSelectId === "savMember") renderWeeklySavingsSchedule();
 }
 function populateMemberBranchDropdown(){
 var el = document.getElementById("memberBranch");
@@ -1259,13 +1235,23 @@ function calculateEmiTotal(){
    remaining principal
 ========================================= */
 
+function getLoanInterestRate(durationType){
+    var settings = window.sirzonSettings || {};
+    var rate = durationType === "Months"
+        ? Number(settings.monthlyInterest)
+        : Number(settings.weeklyInterest);
+    return Number.isFinite(rate) && rate >= 0 ? rate : 0;
+}
+
 function calculateLoanEmiPreview(){
 
     var amt =
         Number(document.getElementById("amtLoan").value) || 0;
 
-    var rate =
-        Number(document.getElementById("loanInterestRate").value) || 0;
+    var durationType =
+        document.getElementById("loanDurationType").value;
+    var rate = getLoanInterestRate(durationType);
+    document.getElementById("loanInterestRate").value = rate;
 
     var val =
         Number(document.getElementById("loanDurationVal").value) || 1;
@@ -1510,13 +1496,10 @@ function addNewLoanTrans(){
             document.getElementById("amtLoan").value
         );
 
-    var rate =
-        Number(
-            document.getElementById("loanInterestRate").value
-        ) || 0;
-
     var durationType =
         document.getElementById("loanDurationType").value;
+
+    var rate = getLoanInterestRate(durationType);
 
     var durationVal =
         document.getElementById("loanDurationVal").value;
@@ -1941,12 +1924,24 @@ function checkReminders(){
         currentUser.role === "MB"
     ){
 
+        var currentMember = db.members.find(function(m){
+            return (
+                m.memberId === currentUser.code ||
+                m.memberId === currentUser.memberId ||
+                m.memberId === currentUser.username ||
+                m.name === currentUser.name
+            );
+        });
+        var currentMemberId = currentMember
+            ? currentMember.memberId
+            : (currentUser.memberId || currentUser.code || currentUser.username);
+        var currentMemberName = currentMember
+            ? currentMember.name
+            : currentUser.name;
+
         loansToCheck =
             db.loans.filter(function(l){
-
-                return l.member ===
-                    currentUser.name;
-
+                return l.member === currentMemberId || l.member === currentMemberName;
             });
 
     }
@@ -2052,6 +2047,19 @@ function checkReminders(){
             String(l.branch || "")
             .replace(/'/g, "\\'");
 
+        var reminderMember = db.members.find(function(m){
+            return m.memberId === l.member || m.name === l.member;
+        });
+        var reminderMemberName = reminderMember ? reminderMember.name : (l.member || "Member");
+        var reminderMemberCode = reminderMember
+            ? reminderMember.memberId
+            : (/^MB\d+/i.test(String(l.member || "")) ? l.member : "");
+        var reminderMemberLabel = reminderMemberCode && reminderMemberCode !== reminderMemberName
+            ? reminderMemberName + " (" + reminderMemberCode + ")"
+            : reminderMemberName;
+        var safeReminderMemberName = String(reminderMemberLabel).replace(/[&<>"']/g, function(character){
+            return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[character];
+        });
         var escapedMember =
             String(l.member || "")
             .replace(/'/g, "\\'");
@@ -2064,7 +2072,7 @@ function checkReminders(){
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
 
     <div>
-      <b>${l.member}</b>
+      <b>${safeReminderMemberName}</b>
       <br>
       <small style="color:#777;">
         Branch: ${l.branch}
@@ -2145,6 +2153,101 @@ loadMemberActiveLoan();
 }, 100);
 }
 /* ===================================================== TRANSACTIONS & MODULES ===================================================== */
+function renderWeeklySavingsSchedule(){
+    var box = document.getElementById("weeklySavingsSchedule");
+    var memberSelect = document.getElementById("savMember");
+    if(!box || !memberSelect) return;
+
+    var memberValue = memberSelect.value;
+    if(!memberValue){
+        box.innerHTML = "";
+        return;
+    }
+
+    var settings = window.sirzonSettings || {};
+    if((settings.savingType || "Weekly") !== "Weekly"){
+        box.innerHTML = '<div class="empty">Weekly schedule is available when Saving Type is set to Weekly.</div>';
+        return;
+    }
+
+    var member = db.members.find(function(m){
+        return m.memberId === memberValue || m.name === memberValue;
+    });
+    if(!member){
+        box.innerHTML = '<div class="empty">Member record not found.</div>';
+        return;
+    }
+
+    var year = new Date().getFullYear();
+    var weekDay = settings.weekDay || "Sunday";
+    var savingAmount = Number(settings.savingAmount || settings.customSavingAmount || 0);
+    var weekDayNumber = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"].indexOf(weekDay);
+    if(weekDayNumber < 0) weekDayNumber = 0;
+
+    var firstDate = new Date(year, 0, 1);
+    firstDate.setDate(firstDate.getDate() + (weekDayNumber - firstDate.getDay() + 7) % 7);
+    var now = new Date();
+    var elapsedWeeks = now < firstDate ? 0 : Math.min(52, Math.floor((now - firstDate) / (7 * 24 * 60 * 60 * 1000)) + 1);
+    var expectedSavings = elapsedWeeks * savingAmount;
+    var currentWeek = Math.max(0, Math.min(51, elapsedWeeks - 1));
+    var savings = db.transactions.filter(function(t){
+        return t.type === "Savings" && t.branch === member.branch &&
+            (t.member === member.memberId || t.member === member.name || t.memberId === member.memberId);
+    });
+
+    function transactionDate(value){
+        var text = String(value || "");
+        var match = text.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+        if(match) return new Date(Number(match[3]), Number(match[2]) - 1, Number(match[1]));
+        var parsed = new Date(text);
+        return Number.isNaN(parsed.getTime()) ? null : parsed;
+    }
+
+    var paidByWeek = Array(52).fill(0);
+    savings.forEach(function(t){
+        var paidDate = transactionDate(t.date || t.joinDate);
+        if(!paidDate || paidDate.getFullYear() !== year || paidDate > now) return;
+        var weekIndex = Math.floor((paidDate - firstDate) / (7 * 24 * 60 * 60 * 1000));
+        if(weekIndex >= 0 && weekIndex < 52){
+            paidByWeek[weekIndex] += Number(t.amount || 0);
+        }
+    });
+
+    var missedWeeks = 0;
+    var missedAmount = 0;
+    var rows = [];
+    for(var week = 0; week < 52; week++){
+        var scheduledDate = new Date(firstDate);
+        scheduledDate.setDate(firstDate.getDate() + week * 7);
+        var nextDate = new Date(scheduledDate);
+        nextDate.setDate(scheduledDate.getDate() + 7);
+        var paidAmount = paidByWeek[week] || 0;
+        var remainingAmount = Math.max(0, savingAmount - paidAmount);
+        var fullyPaid = savingAmount > 0 && paidAmount >= savingAmount;
+        var status = fullyPaid ? "Deposited" : (now >= nextDate ? "Missed" : "Pending");
+        var statusClass = status.toLowerCase();
+        if(status === "Missed"){
+            missedWeeks++;
+            missedAmount += remainingAmount;
+        }
+        var amountToShow = paidAmount > 0 && !fullyPaid
+            ? "₹" + paidAmount.toLocaleString("en-IN") + " deposited / ₹" + remainingAmount.toLocaleString("en-IN") + " due"
+            : "₹" + (fullyPaid ? paidAmount : savingAmount).toLocaleString("en-IN");
+        rows.push("<tr" + (week === currentWeek ? ' style="background:#f0fff6;font-weight:bold;"' : "") + "><td>" + (week + 1) + "</td><td>" + weekDay + "</td><td>" + scheduledDate.toLocaleDateString("en-IN") + "</td><td>" + amountToShow + "</td><td class=\"savings-status " + statusClass + "\">" + status + "</td></tr>");
+    }
+
+    box.innerHTML = "<h4 style=\"margin:0 0 4px;color:#087a32;\">Weekly Savings — " + year + " (52 weeks)</h4>" +
+        "<div style=\"margin-bottom:8px;font-size:13px;color:#555;\">Expected till date: <b style=\"color:#198754;\">₹" + expectedSavings.toLocaleString("en-IN") + "</b> (" + elapsedWeeks + " weeks × ₹" + savingAmount.toLocaleString("en-IN") + ") | Missed: <b style=\"color:#dc3545;\">" + missedWeeks + " weeks / ₹" + missedAmount.toLocaleString("en-IN") + "</b></div>" +
+        "<div id=\"weeklySavingsScheduleScroll\" style=\"max-height:150px;overflow-y:auto;\"><table><thead><tr><th>Week</th><th>Day</th><th>Date</th><th>Savings</th><th>Status</th></tr></thead><tbody>" + rows.join("") + "</tbody></table></div>";
+    var scrollBox = document.getElementById("weeklySavingsScheduleScroll");
+    var currentRow = scrollBox && scrollBox.querySelectorAll("tbody tr")[currentWeek];
+    if(scrollBox && currentRow){
+        var rowTop = currentRow.getBoundingClientRect().top - scrollBox.getBoundingClientRect().top;
+        scrollBox.scrollTop += rowTop - (scrollBox.clientHeight - currentRow.offsetHeight) / 2;
+    }
+    var amountInput = document.getElementById("amtSavings");
+    if(amountInput && !amountInput.value && savingAmount > 0) amountInput.value = savingAmount;
+}
 function addSavingsTrans(){
 var branch = document.getElementById("savBranch").value;
 var member = document.getElementById("savMember").value;
@@ -2174,6 +2277,7 @@ saveDB();
 document.getElementById("amtSavings").value = "";
 document.getElementById("formSavings").classList.remove("active");
 refreshAll();
+renderWeeklySavingsSchedule();
 }
 function addQuickTransOthers(){
 var branch = document.getElementById("othersBranch").value;
@@ -2387,6 +2491,7 @@ return !Number.isNaN(transactionDate.getTime()) &&
 transactionDate.getMonth() === now.getMonth() &&
 transactionDate.getFullYear() === now.getFullYear();
 }
+// Recalculate dashboard totals and refresh lists for the current user's role.
 function refreshAll(){
 if(currentUser && currentUser.role === "MB"){
 refreshMemberDashboard();
@@ -3651,6 +3756,124 @@ function deleteTransaction(id) {
 /* ===================================================== INITIALIZATION ===================================================== */
 var currentUser = null;
 
+// Translate interface text nodes and placeholders while leaving user-entered data untouched.
+window.applySirzonLanguage = function(language){
+  var translations = {
+    Hindi: {
+      "Mobile / Usercode":"मोबाइल / यूज़रकोड", "Enter usercode":"यूज़रकोड दर्ज करें", "Password":"पासवर्ड", "Enter password":"पासवर्ड दर्ज करें",
+      "LOGIN":"लॉगिन", "Create New Branch":"नई शाखा बनाएँ", "Branch Name":"शाखा का नाम", "Manager Name":"मैनेजर का नाम", "Mobile Number":"मोबाइल नंबर",
+      "Branch Address":"शाखा का पता", "Manager Password":"मैनेजर पासवर्ड", "Create manager password":"मैनेजर पासवर्ड बनाएँ", "REGISTER BRANCH":"शाखा पंजीकृत करें",
+      "Already have an account? Login":"पहले से खाता है? लॉगिन करें", "Settings":"सेटिंग्स", "Language":"भाषा", "Terms & Conditions":"नियम और शर्तें", "Logout":"लॉगआउट",
+      "⚙️ Settings":"⚙️ सेटिंग्स", "🌐 Language":"🌐 भाषा", "📜 Terms & Conditions":"📜 नियम और शर्तें", "🚪   Logout":"🚪   लॉगआउट",
+      "💰 Savings":"💰 बचत", "💳 New Loan":"💳 नया ऋण", "📥 EMI Collect":"📥 ईएमआई जमा करें", "🔄 Others IN/OUT":"🔄 अन्य जमा/निकासी", "💸 APPLY & DISTRIBUTE":"💸 लागू करें और वितरित करें",
+      "Weekly":"साप्ताहिक", "Monthly":"मासिक", "Interest Percentage — Weekly (%)":"ब्याज प्रतिशत — साप्ताहिक (%)", "Interest Percentage — Monthly (%)":"ब्याज प्रतिशत — मासिक (%)",
+      "Home":"होम", "Team":"टीम", "Branch":"शाखा", "Distribute":"वितरण", "Account":"खाता", "Member Dashboard":"सदस्य डैशबोर्ड",
+      "Total Savings":"कुल बचत", "Current Savings":"वर्तमान बचत", "Active Loan":"सक्रिय ऋण", "Total Earnings Received":"प्राप्त कुल कमाई",
+      "My Activity / Transactions":"मेरी गतिविधि / लेन-देन", "Search my transactions...":"मेरे लेन-देन खोजें...", "Total Balance":"कुल बैलेंस", "Savings Amount":"बचत राशि",
+      "Earnings Balance":"कमाई बैलेंस", "Quick Transaction":"त्वरित लेन-देन", "Savings":"बचत", "New Loan":"नया ऋण", "EMI Collect":"ईएमआई जमा करें", "Others IN/OUT":"अन्य जमा/निकासी",
+      "Add Savings":"बचत जोड़ें", "Select Branch":"शाखा चुनें", "Select Branch First":"पहले शाखा चुनें", "Select Member":"सदस्य चुनें", "Amount":"राशि", "Submit Saving":"बचत जमा करें",
+      "New Loan Entry":"नया ऋण दर्ज करें", "Loan Amount":"ऋण राशि", "Interest Rate (%)":"ब्याज दर (%)", "Duration Type":"अवधि का प्रकार", "Duration Value":"अवधि", "Weeks":"सप्ताह", "Months":"महीने", "Submit Loan":"ऋण जमा करें",
+      "Collect EMI":"ईएमआई जमा करें", "Principal Amount":"मूलधन", "Interest Amount":"ब्याज राशि", "Total Amount:":"कुल राशि:", "Submit EMI":"ईएमआई जमा करें",
+      "Distribution Amount (Auto-Calculated)":"वितरण राशि (स्वतः गणना)", "Description / Note":"विवरण / टिप्पणी", "APPLY & DISTRIBUTE":"लागू करें और वितरित करें",
+      "Search transactions by member, code, type...":"सदस्य, कोड या प्रकार से लेन-देन खोजें...", "Search branch name or code...":"शाखा का नाम या कोड खोजें...",
+      "Search member name, branch name or code...":"सदस्य/शाखा का नाम या कोड खोजें...", "ADD BRANCH":"शाखा जोड़ें", "ADD MEMBER":"सदस्य जोड़ें", "My Loans":"मेरे ऋण",
+      "My Earnings":"मेरी कमाई", "My Earning Share":"मेरी कमाई का हिस्सा", "My Earning Received":"मुझे मिली कमाई", "Recent History":"हाल का इतिहास",
+      "💸 Distribute":"💸 वितरण", "🏢 Branch":"🏢 शाखा", "👥 Team":"👥 टीम", "💳 My Loans":"💳 मेरे ऋण", "💸 My Earnings":"💸 मेरी कमाई",
+      "🔍 Search my transactions...":"🔍 मेरे लेन-देन खोजें...", "🔍 Search transactions by member, code, type...":"🔍 सदस्य, कोड या प्रकार से लेन-देन खोजें...", "🔍 Search branch name or code...":"🔍 शाखा का नाम या कोड खोजें...", "🔍 Search member name, branch name or code...":"🔍 सदस्य/शाखा का नाम या कोड खोजें...",
+      "REGISTER BRANCH":"शाखा पंजीकृत करें", "ADD BRANCH":"शाखा जोड़ें", "ADD MEMBER":"सदस्य जोड़ें", "Submit Others":"अन्य जमा करें",
+      "Username:":"यूज़रनेम:", "Role:":"भूमिका:", "Total Branches:":"कुल शाखाएँ:", "Total Members:":"कुल सदस्य:", "LOGOUT":"लॉगआउट",
+      "Select Language":"भाषा चुनें", "Save Language":"भाषा सहेजें", "Cancel":"रद्द करें", "Save Settings":"सेटिंग्स सहेजें", "Saving Type":"बचत का प्रकार",
+      "Saving Amount (₹)":"बचत राशि (₹)", "Custom Amount":"अन्य राशि", "Week Day":"सप्ताह का दिन", "Terms & Conditions":"नियम और शर्तें", "No transactions found":"कोई लेन-देन नहीं मिला",
+      "No loans found":"कोई ऋण नहीं मिला", "No earnings history found":"कमाई का इतिहास उपलब्ध नहीं है", "No distribution history found":"वितरण का इतिहास उपलब्ध नहीं है",
+      "Total Available Earnings Pool":"उपलब्ध कुल कमाई", "My Earning Share":"मेरी कमाई का हिस्सा", "My Earning Received":"मुझे मिली कमाई", "Recent History":"हाल का इतिहास",
+      "Active Dues & Reminders":"बकाया और रिमाइंडर", "No upcoming reminders.":"कोई आगामी रिमाइंडर नहीं।", "No active reminders.":"कोई सक्रिय रिमाइंडर नहीं।",
+      "No members found":"कोई सदस्य नहीं मिला", "No earnings history found":"कमाई का इतिहास उपलब्ध नहीं है", "No distribution history found":"वितरण का इतिहास उपलब्ध नहीं है",
+      "Branch Name":"शाखा का नाम", "Manager Name":"मैनेजर का नाम", "Member Name":"सदस्य का नाम", "Member Address":"सदस्य का पता", "Member Password":"सदस्य पासवर्ड",
+      "Search Branch":"शाखा खोजें", "Search member...":"सदस्य खोजें...", "Search branch...":"शाखा खोजें...", "Enter amount":"राशि दर्ज करें",
+      "Enter description/purpose":"विवरण/उद्देश्य दर्ज करें", "Description / Note":"विवरण / टिप्पणी", "Distribution Amount (Auto-Calculated)":"वितरण राशि (स्वतः गणना)",
+      "Current Password":"वर्तमान पासवर्ड", "New Password":"नया पासवर्ड", "Confirm Password":"पासवर्ड की पुष्टि करें", "Change Password":"पासवर्ड बदलें",
+      "Save":"सहेजें", "Edit":"संपादित करें", "Remove":"हटाएँ", "Add Rules":"नियम जोड़ें", "Title Name":"शीर्षक", "Rule description likhein...":"नियम का विवरण लिखें...",
+      "Deposited":"जमा", "Missed":"छूटा", "Pending":"लंबित", "Week":"सप्ताह", "Day":"दिन", "Date":"तारीख", "Status":"स्थिति",
+      "Interest Rate (%)":"ब्याज दर (%)", "Loan Amount":"ऋण राशि", "Principal Amount":"मूलधन", "Interest Amount":"ब्याज राशि", "Total Amount:":"कुल राशि:",
+      "Name:":"नाम:", "Branch:":"शाखा:", "Join date:":"जुड़ने की तारीख:", "Usercode:":"यूज़रकोड:", "Manager:":"मैनेजर:", "Mobile:":"मोबाइल:", "Address:":"पता:"
+    },
+    Santali: {
+      "Mobile / Usercode":"Mobile / Usercode", "Enter usercode":"Usercode ol me", "Password":"Password", "Enter password":"Password ol me",
+      "LOGIN":"Login", "Create New Branch":"ᱱᱟᱶᱟ ᱵᱨᱟᱧᱪ ᱵᱮᱱᱟᱣ", "Branch Name":"ᱵᱨᱟᱧᱪ ᱧᱩᱛᱩᱢ", "Manager Name":"ᱢᱮᱱᱮᱡᱟᱨ ᱧᱩᱛᱩᱢ",
+      "Mobile Number":"ᱢᱚᱵᱟᱭᱤᱞ ᱮᱞ", "Branch Address":"ᱵᱨᱟᱧᱪ ᱴᱷᱟᱶ", "Manager Password":"ᱢᱮᱱᱮᱡᱟᱨ ᱯᱟᱥᱣᱟᱨᱰ", "REGISTER BRANCH":"ᱵᱨᱟᱧᱪ ᱨᱮᱡᱤᱥᱴᱟᱨ",
+      "Settings":"ᱥᱮᱴᱤᱝᱥ", "Language":"ᱯᱟᱹᱨᱥᱤ", "Terms & Conditions":"ᱱᱤᱭᱚᱢ ᱟᱨ ᱥᱚᱨᱛ", "Logout":"ᱞᱚᱜᱟᱣᱴ",
+      "⚙️ Settings":"⚙️ ᱥᱮᱴᱤᱝᱥ", "🌐 Language":"🌐 ᱯᱟᱹᱨᱥᱤ", "📜 Terms & Conditions":"📜 ᱱᱤᱭᱚᱢ ᱟᱨ ᱥᱚᱨᱛ",
+      "💰 Savings":"💰 ᱵᱚᱪᱚᱛ", "💳 New Loan":"💳 ᱱᱟᱶᱟ ᱠᱷᱚᱱ", "📥 EMI Collect":"📥 EMI ᱡᱚᱢᱟ", "🔄 Others IN/OUT":"🔄 ᱮᱴᱟᱜ ᱡᱚᱢᱟ/ᱵᱟᱹᱦᱨᱤ", "💸 APPLY & DISTRIBUTE":"💸 ᱵᱷᱟᱜᱟᱣ",
+      "Weekly":"ᱦᱟᱹᱴ ᱦᱤᱸᱥ", "Monthly":"ᱪᱟᱸᱫᱚ ᱦᱤᱸᱥ", "Interest Percentage — Weekly (%)":"ᱦᱟᱹᱴ ᱵᱤᱭᱟᱡ ᱦᱟᱨ (%)", "Interest Percentage — Monthly (%)":"ᱪᱟᱸᱫᱚ ᱵᱤᱭᱟᱡ ᱦᱟᱨ (%)",
+      "💸 Distribute":"💸 ᱵᱷᱟᱜᱟᱣ", "🏢 Branch":"🏢 ᱵᱨᱟᱧᱪ", "👥 Team":"👥 ᱫᱚᱞ", "💳 My Loans":"💳 ᱤᱧᱟᱜ ᱠᱷᱚᱱ", "💸 My Earnings":"💸 ᱤᱧᱟᱜ ᱠᱟᱢᱟᱭ",
+      "🔍 Search my transactions...":"🔍 ᱤᱧᱟᱜ ᱞᱮᱱ-ᱫᱮᱱ ᱯᱟᱱᱛᱮ", "🔍 Search transactions by member, code, type...":"🔍 ᱢᱮᱢᱵᱟᱨ, ᱠᱳᱰ ᱟᱨ ᱞᱮᱠᱟ ᱯᱟᱱᱛᱮ", "🔍 Search branch name or code...":"🔍 ᱵᱨᱟᱧᱪ ᱧᱩᱛᱩᱢ ᱟᱨ ᱠᱳᱰ ᱯᱟᱱᱛᱮ", "🔍 Search member name, branch name or code...":"🔍 ᱢᱮᱢᱵᱟᱨ ᱟᱨ ᱵᱨᱟᱧᱪ ᱯᱟᱱᱛᱮ",
+      "REGISTER BRANCH":"ᱵᱨᱟᱧᱪ ᱨᱮᱡᱤᱥᱴᱟᱨ", "ADD BRANCH":"ᱵᱨᱟᱧᱪ ᱥᱮᱞᱮᱫ", "ADD MEMBER":"ᱢᱮᱢᱵᱟᱨ ᱥᱮᱞᱮᱫ", "Submit Others":"ᱮᱴᱟᱜ ᱡᱚᱢᱟ",
+      "Home":"ᱚᱲᱟᱜ", "Team":"ᱫᱚᱞ", "Branch":"ᱵᱨᱟᱧᱪ", "Distribute":"ᱵᱷᱟᱜᱟᱣ", "Account":"ᱠᱷᱟᱛᱟ", "Member Dashboard":"ᱢᱮᱢᱵᱟᱨ ᱰᱮᱥᱵᱳᱨᱰ",
+      "Total Savings":"ᱢᱚᱴ ᱵᱚᱪᱚᱛ", "Current Savings":"ᱱᱤᱛᱚᱜ ᱵᱚᱪᱚᱛ", "Active Loan":"ᱪᱟᱹᱞᱩ ᱠᱷᱚᱱ", "Savings":"ᱵᱚᱪᱚᱛ", "New Loan":"ᱱᱟᱶᱟ ᱠᱷᱚᱱ",
+      "EMI Collect":"EMI ᱡᱚᱢᱟ", "Others IN/OUT":"ᱮᱴᱟᱜ ᱡᱚᱢᱟ/ᱵᱟᱹᱦᱨᱤ", "Add Savings":"ᱵᱚᱪᱚᱛ ᱥᱮᱞᱮᱫ", "Select Branch":"ᱵᱨᱟᱧᱪ ᱵᱟᱪᱷᱟᱣ",
+      "Select Member":"ᱢᱮᱢᱵᱟᱨ ᱵᱟᱪᱷᱟᱣ", "Amount":"ᱴᱟᱠᱟ", "Submit Saving":"ᱵᱚᱪᱚᱛ ᱡᱚᱢᱟ", "New Loan Entry":"ᱱᱟᱶᱟ ᱠᱷᱚᱱ ᱮᱢ", "Loan Amount":"ᱠᱷᱚᱱ ᱴᱟᱠᱟ",
+      "Interest Rate (%)":"ᱵᱤᱭᱟᱡ ᱦᱟᱨ (%)", "Duration Type":"ᱚᱠᱛᱚ ᱞᱮᱠᱟ", "Duration Value":"ᱚᱠᱛᱚ ᱜᱚᱱᱚᱝ", "Weeks":"ᱦᱟᱹᱴ", "Months":"ᱪᱟᱸᱫᱚ", "Submit Loan":"ᱠᱷᱚᱱ ᱮᱢ", "Collect EMI":"EMI ᱡᱚᱢᱟ",
+      "Principal Amount":"ᱢᱩᱞ ᱴᱟᱠᱟ", "Interest Amount":"ᱵᱤᱭᱟᱡ ᱴᱟᱠᱟ", "Total Amount:":"ᱢᱚᱴ ᱴᱟᱠᱟ:", "Submit EMI":"EMI ᱡᱚᱢᱟ", "My Loans":"ᱤᱧᱟᱜ ᱠᱷᱚᱱ",
+      "My Earnings":"ᱤᱧᱟᱜ ᱠᱟᱢᱟᱭ", "Recent History":"ᱱᱟᱶᱟ ᱦᱤᱥᱟᱹᱵ", "Select Language":"ᱯᱟᱹᱨᱥᱤ ᱵᱟᱪᱷᱟᱣ", "Save Language":"ᱯᱟᱹᱨᱥᱤ ᱥᱟᱸᱪᱟᱣ",
+      "Cancel":"ᱵᱟᱹᱛᱤᱞ", "Save Settings":"ᱥᱮᱴᱤᱝᱥ ᱥᱟᱸᱪᱟᱣ", "Saving Type":"ᱵᱚᱪᱚᱛ ᱞᱮᱠᱟ", "Saving Amount (₹)":"ᱵᱚᱪᱚᱛ ᱴᱟᱠᱟ (₹)", "Week Day":"ᱦᱟᱹᱴ ᱫᱤᱱ",
+      "Total Available Earnings Pool":"ᱢᱚᱴ ᱩᱯᱟᱹᱨᱡᱚᱱ ᱯᱩᱞ", "My Earning Share":"ᱤᱧᱟᱜ ᱠᱟᱢᱟᱭ ᱦᱤᱸᱥ", "My Earning Received":"ᱤᱧ ᱧᱟᱢᱟᱠᱟᱫ ᱠᱟᱢᱟᱭ", "Recent History":"ᱱᱟᱶᱟ ᱦᱤᱥᱟᱹᱵ",
+      "Active Dues & Reminders":"ᱪᱟᱹᱞᱩ ᱵᱟᱹᱠᱤ ᱟᱨ ᱨᱤᱢᱟᱭᱱᱰᱟᱨ", "No upcoming reminders.":"ᱪᱮᱫ ᱱᱟᱶᱟ ᱨᱤᱢᱟᱭᱱᱰᱟᱨ ᱵᱟᱹᱱᱩᱜᱼᱟ.", "No active reminders.":"ᱪᱟᱹᱞᱩ ᱨᱤᱢᱟᱭᱱᱰᱟᱨ ᱵᱟᱹᱱᱩᱜᱼᱟ.",
+      "No members found":"ᱢᱮᱢᱵᱟᱨ ᱵᱟᱹᱱᱟᱢ", "Search Branch":"ᱵᱨᱟᱧᱪ ᱯᱟᱱᱛᱮ", "Search member...":"ᱢᱮᱢᱵᱟᱨ ᱯᱟᱱᱛᱮ...", "Search branch...":"ᱵᱨᱟᱧᱪ ᱯᱟᱱᱛᱮ...",
+      "Enter amount":"ᱴᱟᱠᱟ ᱚᱞ ᱢᱮ", "Enter description/purpose":"ᱵᱤᱵᱨᱚᱬ/ᱩᱫᱽᱫᱮᱥᱭ ᱚᱞ ᱢᱮ", "Current Password":"ᱱᱤᱛᱚᱜ ᱯᱟᱥᱣᱟᱨᱰ", "New Password":"ᱱᱟᱶᱟ ᱯᱟᱥᱣᱟᱨᱰ", "Confirm Password":"ᱯᱟᱥᱣᱟᱨᱰ ᱯᱩᱥᱴᱟᱹᱣ",
+      "Save":"ᱥᱟᱸᱪᱟᱣ", "Edit":"ᱥᱟᱯᱲᱟᱣ", "Remove":"ᱚᱪᱚᱜ", "Add Rules":"ᱱᱤᱭᱚᱢ ᱥᱮᱞᱮᱫ", "Title Name":"ᱢᱩᱫᱩᱢ ᱧᱩᱛᱩᱢ", "Deposited":"ᱡᱚᱢᱟ", "Missed":"ᱪᱷᱩᱴᱟᱜ", "Pending":"ᱛᱟᱹᱝᱜᱤᱡ", "Week":"ᱦᱟᱹᱴ", "Day":"ᱫᱤᱱ", "Date":"ᱢᱟᱹᱦᱤᱛ", "Status":"ᱥᱴᱮᱴᱟᱥ"
+    }
+  };
+  var dictionary = translations[language] || {};
+  function translate(value){
+    var translated = value;
+    var replacePhrase = function(text, phrase, replacement){
+      return phrase ? text.split(phrase).join(replacement) : text;
+    };
+    var previousLanguage = translations[window.appliedSirzonLanguage] || {};
+
+    // Convert the prior UI language back to English before translating new text.
+    Object.keys(previousLanguage).sort(function(a,b){
+      return previousLanguage[b].length - previousLanguage[a].length;
+    }).forEach(function(english){
+      translated = replacePhrase(translated, previousLanguage[english], english);
+    });
+    Object.keys(dictionary).sort(function(a,b){ return b.length - a.length; }).forEach(function(english){
+      translated = replacePhrase(translated, english, dictionary[english]);
+    });
+    window.appliedSirzonLanguage = language;
+    return translated;
+  }
+  function update(root){
+    if(root.nodeType === 3){
+      var changed = translate(root.nodeValue);
+      if(changed !== root.nodeValue) root.nodeValue = changed;
+      return;
+    }
+    if(root.nodeType !== 1 && root !== document) return;
+    var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    var textNodes = [];
+    while(walker.nextNode()) textNodes.push(walker.currentNode);
+    textNodes.forEach(function(node){
+      var changed = translate(node.nodeValue);
+      if(changed !== node.nodeValue) node.nodeValue = changed;
+    });
+    if(root.querySelectorAll){
+      root.querySelectorAll("input[placeholder],textarea[placeholder]").forEach(function(el){ el.placeholder = translate(el.placeholder); });
+    }
+  }
+  document.documentElement.lang = language === "Hindi" ? "hi" : (language === "Santali" ? "sat" : "en");
+  update(document);
+  if(!window.sirzonLanguageObserver){
+    window.sirzonLanguageObserver = new MutationObserver(function(records){
+      records.forEach(function(record){
+        if(record.type === "characterData") update(record.target);
+        record.addedNodes && record.addedNodes.forEach(update);
+      });
+    });
+    window.sirzonLanguageObserver.observe(document.body,{subtree:true,childList:true,characterData:true});
+  }
+};
+
 document.getElementById("loginPage").style.display = "flex";
 document.getElementById("app").style.display = "none";
 updateRealTimeBadges();
@@ -4277,6 +4500,7 @@ if(!window.db) {
    FIRESTORE DATABASE LOAD
 ================================ */
 
+// Load the shared database once before login and app actions depend on it.
 window.firebaseDBReady = (async function() {
 
   try {
@@ -4580,8 +4804,7 @@ window.loadSirzonSettings=async function(){
 try{
 const snapshot=await getDoc(sirzonSettingsRef);
 const data=snapshot.exists()?snapshot.data():{};
-const {language,...settingsData}=data;
-window.sirzonSettings={...defaultSirzonSettings,...settingsData};
+window.sirzonSettings={...defaultSirzonSettings,...data};
 window.applySirzonSettingsToForm();
 return window.sirzonSettings;
 }catch(error){
@@ -4689,7 +4912,9 @@ message.textContent="Saving...";
 try{
 await setDoc(sirzonSettingsRef,settings,{merge:true});
 window.sirzonSettings={...defaultSirzonSettings,...window.sirzonSettings,...settings};
-message.textContent="Settings Firebase mein save ho gayi.";
+if(typeof window.renderWeeklySavingsSchedule==="function")window.renderWeeklySavingsSchedule();
+if(typeof window.calculateLoanEmiPreview==="function")window.calculateLoanEmiPreview();
+message.textContent="Settings saved successfully.";
 }catch(error){
 console.error("Settings save error:",error);
 message.textContent="Settings save nahi hui: "+error.message;
@@ -4703,58 +4928,10 @@ window.closeSirzonTerms=function(){
 const modal=document.getElementById("sirzonTermsModal");
 if(modal)modal.style.display="none";
 };
-// SIRZON LANGUAGE - FIREBASE
-window.sirzonLanguage="Hindi";
-window.loadSirzonLanguage=async function(){
-try{
-const snapshot=await getDoc(sirzonSettingsRef);
-const data=snapshot.exists()?snapshot.data():{};
-window.sirzonLanguage=data.language||"Hindi";
-const select=document.getElementById("sirzonLanguageSelect");
-if(select)select.value=window.sirzonLanguage;
-return window.sirzonLanguage;
-}catch(error){
-console.error("Language load error:",error);
-throw error;
-}
-};
-window.openSirzonLanguage=async function(){
-const modal=document.getElementById("sirzonLanguageModal");
-const message=document.getElementById("sirzonLanguageMessage");
-if(!modal)return;
-modal.style.display="flex";
-if(message)message.textContent="Loading language...";
-try{
-await window.loadSirzonLanguage();
-if(message)message.textContent="";
-}catch(error){
-if(message)message.textContent="Language load nahi hui. Internet aur Firebase check karein.";
-}
-};
-window.closeSirzonLanguage=function(){
-const modal=document.getElementById("sirzonLanguageModal");
-if(modal)modal.style.display="none";
-};
-window.saveSirzonLanguage=async function(){
-const message=document.getElementById("sirzonLanguageMessage");
-const language=document.getElementById("sirzonLanguageSelect")?.value;
-if(!["Hindi","English","Santali"].includes(language)){
-if(message)message.textContent="Valid Language select karein.";
-return;
-}
-if(message)message.textContent="Saving language...";
-try{
-await setDoc(sirzonSettingsRef,{language,languageUpdatedAt:new Date().toISOString()},{merge:true});
-window.sirzonLanguage=language;
-if(message)message.textContent="Language Firebase mein save ho gayi.";
-}catch(error){
-console.error("Language save error:",error);
-if(message)message.textContent="Language save nahi hui: "+error.message;
-}
-};
+// Load settings once Firebase is ready.
 window.firebaseDBReady.then(async()=>{
 await window.loadSirzonSettings();
-await window.loadSirzonLanguage();
+if(typeof window.calculateLoanEmiPreview==="function")window.calculateLoanEmiPreview();
 }).catch(error=>console.error("Initial Firebase settings load error:",error));
 // SIRZON TERMS & CONDITIONS
 const sirzonTermsRef=doc(firestoreDB,"system","terms");
