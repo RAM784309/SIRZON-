@@ -2067,9 +2067,7 @@ function checkReminders(){
             }, 0);
         installmentAmount = Math.max(0, installmentAmount - paidThisMonth);
         if(installmentAmount <= 0) return;
-        var dueLabel = currentUser && currentUser.role === "MB"
-            ? "Current month loan deposit"
-            : "Current installment";
+        var dueLabel = new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" }) + " Loan Installment";
 
         var escapedBranch = String(l.branch || "")
             .replace(/\\/g, "\\\\")
