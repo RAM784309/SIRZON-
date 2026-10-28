@@ -541,6 +541,21 @@ Submit Others
 <div id="notifListContent" style="font-size:14px;max-height:280px;overflow-y:auto;color:#555;"> No upcoming reminders. </div>
 </div>
 </div>
+<!-- PAYMENT QR MODAL -->
+<div class="modal-overlay" id="paymentQrModal">
+<div class="modal-box" style="text-align:center;">
+<div class="modal-header">
+<h3 style="color:#198754;">Scan to Pay</h3>
+<button type="button" aria-label="Close payment QR" style="background:none;font-size:18px;padding:0;cursor:pointer;" onclick="closePaymentQr()">✕</button>
+</div>
+<p id="paymentQrPurpose" style="margin:8px 0;color:#555;"></p>
+<p id="paymentQrAmount" style="font-size:22px;font-weight:bold;color:#198754;margin:8px 0;"></p>
+<img id="paymentQrImage" alt="UPI payment QR code" style="display:block;width:240px;height:240px;max-width:100%;margin:12px auto;border:1px solid #eee;border-radius:8px;">
+<p style="font-size:13px;color:#555;">UPI ID: <b>7857804451@ptsbi</b></p>
+<p style="font-size:12px;color:#777;margin-top:8px;">After payment, ask the branch manager to record your deposit.</p>
+<button type="button" class="login-btn" style="margin-top:12px;" onclick="closePaymentQr()">Done</button>
+</div>
+</div>
 <!-- CHANGE PASSWORD MODAL -->
 <div class="password-popup" id="passwordPopup">
 <div class="password-box">
@@ -2041,10 +2056,23 @@ function checkReminders(){
         var installmentAmount =
             principalInstallment +
             currentInterest;
+        var paidThisMonth = db.transactions
+            .filter(function(t){
+                return t.type === "EMI Collect" &&
+                    t.loanId === l.id &&
+                    isCurrentMonthTransaction(t);
+            })
+            .reduce(function(sum, t){
+                return sum + Number(t.amount || 0);
+            }, 0);
+        installmentAmount = Math.max(0, installmentAmount - paidThisMonth);
+        if(installmentAmount <= 0) return;
+        var dueLabel = currentUser && currentUser.role === "MB"
+            ? "Current month loan deposit"
+            : "Current installment";
 
-
-        var escapedBranch =
-            String(l.branch || "")
+        var escapedBranch = String(l.branch || "")
+            .replace(/\\/g, "\\\\")
             .replace(/'/g, "\\'");
 
         var reminderMember = db.members.find(function(m){
@@ -2060,10 +2088,14 @@ function checkReminders(){
         var safeReminderMemberName = String(reminderMemberLabel).replace(/[&<>"']/g, function(character){
             return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[character];
         });
-        var escapedMember =
-            String(l.member || "")
+        var escapedMember = String(l.member || "")
+            .replace(/\\/g, "\\\\")
             .replace(/'/g, "\\'");
-
+        var canRecordDeposit = currentUser && (currentUser.role === "AD" || currentUser.role === "BR");
+        var loanDepositButton = canRecordDeposit
+            ? `<button style="flex:1;margin-top:6px;background:#198754;color:white;padding:8px;font-size:13px;border-radius:6px;font-weight:bold;" onclick="payFromNotification('${escapedBranch}', '${escapedMember}')">Deposit</button>`
+            : "";
+        var memberUpiButton = `<button style="flex:1;margin-top:6px;background:#0d6efd;color:white;padding:8px;font-size:13px;border-radius:6px;font-weight:bold;" onclick="payMemberDuesViaUpi(${installmentAmount}, 'Loan installment')">Pay by QR</button>`;
 
         reminders.push(`
 
@@ -2082,7 +2114,7 @@ function checkReminders(){
     <div style="text-align:right;">
 
       <span style="color:#dc3545;font-weight:bold;">
-        Due: ₹${installmentAmount.toLocaleString("en-IN")}
+        ${dueLabel}: ₹${installmentAmount.toLocaleString("en-IN")}
       </span>
 
       <br>
@@ -2103,12 +2135,10 @@ function checkReminders(){
   </div>
 
 
-  <button
-    style="width:100%;background:#198754;color:white;padding:8px;font-size:13px;border-radius:6px;font-weight:bold;"
-    onclick="payFromNotification('${escapedBranch}', '${escapedMember}')"
-  >
-    Pay Now
-  </button>
+  <div style="display:flex;gap:8px;">
+    ${loanDepositButton}
+    ${memberUpiButton}
+  </div>
 
 </div>
 
@@ -2116,6 +2146,73 @@ function checkReminders(){
 
     });
 
+    // Show outstanding savings for the signed-in member, or all visible members for staff.
+    if(currentUser){
+        var settings = window.sirzonSettings || {};
+        var savingAmount = Number(settings.savingAmount || settings.customSavingAmount || 0);
+        var now = new Date();
+        var year = now.getFullYear();
+        var expectedPeriods = 0;
+
+        if((settings.savingType || "Weekly") === "Monthly"){
+            expectedPeriods = now.getMonth() + 1;
+        } else {
+            var weekDayNumber = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"].indexOf(settings.weekDay || "Sunday");
+            if(weekDayNumber < 0) weekDayNumber = 0;
+            var firstDate = new Date(year, 0, 1);
+            firstDate.setDate(firstDate.getDate() + (weekDayNumber - firstDate.getDay() + 7) % 7);
+            expectedPeriods = now < firstDate ? 0 : Math.min(52, Math.floor((now - firstDate) / (7 * 24 * 60 * 60 * 1000)) + 1);
+        }
+
+        var membersForSavingsReminders = db.members;
+        if(currentUser.role === "MB"){
+            membersForSavingsReminders = db.members.filter(function(m){
+                return m.memberId === currentUser.memberId || m.memberId === currentUser.code ||
+                    m.memberId === currentUser.username || m.name === currentUser.name;
+            }).slice(0, 1);
+        } else if(currentUser.role === "BR"){
+            membersForSavingsReminders = db.members.filter(function(m){
+                return m.branch === currentUser.branch && String(m.status || "Active").toLowerCase() === "active";
+            });
+        } else if(currentUser.role === "AD"){
+            membersForSavingsReminders = db.members.filter(function(m){
+                return String(m.status || "Active").toLowerCase() === "active";
+            });
+        } else {
+            membersForSavingsReminders = [];
+        }
+
+        membersForSavingsReminders.forEach(function(member){
+            var memberId = member.memberId || "";
+            var memberName = member.name || "Member";
+            var depositedThisYear = db.transactions.filter(function(t){
+                if(t.type !== "Savings" || t.branch !== member.branch) return false;
+                if(t.member !== memberId && t.member !== memberName && t.memberId !== memberId) return false;
+                var match = String(t.date || t.joinDate || "").match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+                var date = match ? new Date(Number(match[3]), Number(match[2]) - 1, Number(match[1])) : new Date(t.date || t.joinDate || "");
+                return !Number.isNaN(date.getTime()) && date.getFullYear() === year;
+            }).reduce(function(sum, t){
+                return sum + Number(t.amount || 0);
+            }, 0);
+
+            var pendingSavings = Math.max(0, expectedPeriods * savingAmount - depositedThisYear);
+            if(pendingSavings <= 0) return;
+
+            var safeName = String(memberName).replace(/[&<>"']/g, function(character){
+                return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[character];
+            });
+            var safeBranchName = String(member.branch || "").replace(/[&<>"']/g, function(character){
+                return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[character];
+            });
+            var escapedSavingsBranch = String(member.branch || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+            var escapedSavingsMember = String(memberId).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+            var savingsDepositButton = currentUser.role === "AD" || currentUser.role === "BR"
+                ? '<button style="flex:1;margin-top:6px;background:#198754;color:white;padding:8px;font-size:13px;border-radius:6px;font-weight:bold;" onclick="paySavingsFromNotification(\'' + escapedSavingsBranch + '\', \'' + escapedSavingsMember + '\', ' + pendingSavings + ')">Deposit</button>'
+                : "";
+            var savingsQrButton = '<button style="flex:1;margin-top:6px;background:#0d6efd;color:white;padding:8px;font-size:13px;border-radius:6px;font-weight:bold;" onclick="payMemberDuesViaUpi(' + pendingSavings + ', \'Savings deposit\')">Pay by QR</button>';
+            reminders.push('<div style="padding:12px 0;border-bottom:1px solid #eee;"><b>Pending Savings — ' + safeName + '</b><br><small>Branch: ' + safeBranchName + ' | Outstanding savings due: ₹' + pendingSavings.toLocaleString("en-IN") + '</small><div style="display:flex;gap:8px;">' + savingsDepositButton + savingsQrButton + '</div></div>');
+        });
+    }
 
     if(reminders.length > 0){
 
@@ -2138,6 +2235,49 @@ function checkReminders(){
 
     }
 
+}
+function payMemberDuesViaUpi(amount, note){
+var paymentAmount = Number(amount);
+if(!Number.isFinite(paymentAmount) || paymentAmount <= 0){
+alert("Invalid payment amount.");
+return;
+}
+var purpose = note || "Member due payment";
+var upiUrl = "upi://pay?pa=" + encodeURIComponent("7857804451@ptsbi") +
+"&pn=" + encodeURIComponent("SIRZON") +
+"&am=" + paymentAmount.toFixed(2) +
+"&cu=INR&tn=" + encodeURIComponent(purpose);
+var qrModal = document.getElementById("paymentQrModal");
+var qrImage = document.getElementById("paymentQrImage");
+var qrPurpose = document.getElementById("paymentQrPurpose");
+var qrAmount = document.getElementById("paymentQrAmount");
+if(!qrModal || !qrImage || !qrPurpose || !qrAmount){
+alert("Payment QR could not be opened.");
+return;
+}
+qrPurpose.textContent = purpose;
+qrAmount.textContent = "₹" + paymentAmount.toLocaleString("en-IN", {minimumFractionDigits:2, maximumFractionDigits:2});
+qrImage.src = "https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=" + encodeURIComponent(upiUrl);
+qrImage.onerror = function(){
+qrImage.alt = "QR code could not be loaded. Check your internet connection.";
+};
+qrModal.style.display = "flex";
+}
+function closePaymentQr(){
+var qrModal = document.getElementById("paymentQrModal");
+if(qrModal) qrModal.style.display = "none";
+}
+function paySavingsFromNotification(branchName, memberId, amount){
+toggleNotifModal(false);
+openPage("homePage");
+toggleForm("formSavings");
+var branchSelect = document.getElementById("savBranch");
+branchSelect.value = branchName;
+filterMembersByBranch("savBranch", "savMember");
+var memberSelect = document.getElementById("savMember");
+memberSelect.value = memberId;
+renderWeeklySavingsSchedule();
+document.getElementById("amtSavings").value = amount;
 }
 function payFromNotification(branchName, memberName){
 toggleNotifModal(false);
@@ -2194,6 +2334,9 @@ function renderWeeklySavingsSchedule(){
         return t.type === "Savings" && t.branch === member.branch &&
             (t.member === member.memberId || t.member === member.name || t.memberId === member.memberId);
     });
+    var totalSavings = savings.reduce(function(sum, t){
+        return sum + Number(t.amount || 0);
+    }, 0);
 
     function transactionDate(value){
         var text = String(value || "");
@@ -2213,6 +2356,10 @@ function renderWeeklySavingsSchedule(){
         }
     });
 
+    var depositedThisYear = paidByWeek.reduce(function(sum, amount){
+        return sum + amount;
+    }, 0);
+    var pendingSavings = Math.max(0, expectedSavings - depositedThisYear);
     var missedWeeks = 0;
     var missedAmount = 0;
     var rows = [];
@@ -2237,7 +2384,7 @@ function renderWeeklySavingsSchedule(){
     }
 
     box.innerHTML = "<h4 style=\"margin:0 0 4px;color:#087a32;\">Weekly Savings — " + year + " (52 weeks)</h4>" +
-        "<div style=\"margin-bottom:8px;font-size:13px;color:#555;\">Expected till date: <b style=\"color:#198754;\">₹" + expectedSavings.toLocaleString("en-IN") + "</b> (" + elapsedWeeks + " weeks × ₹" + savingAmount.toLocaleString("en-IN") + ") | Missed: <b style=\"color:#dc3545;\">" + missedWeeks + " weeks / ₹" + missedAmount.toLocaleString("en-IN") + "</b></div>" +
+        "<div style=\"margin-bottom:8px;font-size:13px;color:#555;\">Total Savings: <b style=\"color:#198754;\">₹" + totalSavings.toLocaleString("en-IN") + "</b> | Pending Savings: <b style=\"color:#dc3545;\">₹" + pendingSavings.toLocaleString("en-IN") + "</b><br>Expected till date: <b style=\"color:#198754;\">₹" + expectedSavings.toLocaleString("en-IN") + "</b> (" + elapsedWeeks + " weeks × ₹" + savingAmount.toLocaleString("en-IN") + ") | Missed: <b style=\"color:#dc3545;\">" + missedWeeks + " weeks / ₹" + missedAmount.toLocaleString("en-IN") + "</b></div>" +
         "<div id=\"weeklySavingsScheduleScroll\" style=\"max-height:150px;overflow-y:auto;\"><table><thead><tr><th>Week</th><th>Day</th><th>Date</th><th>Savings</th><th>Status</th></tr></thead><tbody>" + rows.join("") + "</tbody></table></div>";
     var scrollBox = document.getElementById("weeklySavingsScheduleScroll");
     var currentRow = scrollBox && scrollBox.querySelectorAll("tbody tr")[currentWeek];
