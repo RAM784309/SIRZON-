@@ -2149,17 +2149,26 @@ function checkReminders(){
         var settings = window.sirzonSettings || {};
         var savingAmount = Number(settings.savingAmount || settings.customSavingAmount || 0);
         var now = new Date();
-        var year = now.getFullYear();
+        var notificationYear = Number(selectedSavingsScheduleYear) || now.getFullYear();
+        var weeklySaving = (settings.savingType || "Weekly") !== "Monthly";
         var expectedPeriods = 0;
+        var weeklyStartDate = null;
+        var dueThroughDate = notificationYear > now.getFullYear()
+            ? null
+            : (notificationYear < now.getFullYear() ? new Date(notificationYear, 11, 31) : now);
 
-        if((settings.savingType || "Weekly") === "Monthly"){
-            expectedPeriods = now.getMonth() + 1;
-        } else {
-            var weekDayNumber = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"].indexOf(settings.weekDay || "Sunday");
-            if(weekDayNumber < 0) weekDayNumber = 0;
-            var firstDate = new Date(year, 0, 1);
-            firstDate.setDate(firstDate.getDate() + (weekDayNumber - firstDate.getDay() + 7) % 7);
-            expectedPeriods = now < firstDate ? 0 : Math.min(52, Math.floor((now - firstDate) / (7 * 24 * 60 * 60 * 1000)) + 1);
+        if(dueThroughDate && notificationYear >= 2020){
+            if(!weeklySaving){
+                expectedPeriods = notificationYear < now.getFullYear() ? 12 : now.getMonth() + 1;
+            } else {
+                var weekDayNumber = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"].indexOf(settings.weekDay || "Sunday");
+                if(weekDayNumber < 0) weekDayNumber = 0;
+                weeklyStartDate = new Date(2020, 7, 30);
+                weeklyStartDate.setDate(weeklyStartDate.getDate() + (weekDayNumber - weeklyStartDate.getDay() + 7) % 7);
+                for(var dueDate = new Date(weeklyStartDate); dueDate <= dueThroughDate; dueDate.setDate(dueDate.getDate() + 7)){
+                    expectedPeriods++;
+                }
+            }
         }
 
         var membersForSavingsReminders = db.members;
@@ -2188,7 +2197,9 @@ function checkReminders(){
                 if(t.member !== memberId && t.member !== memberName && t.memberId !== memberId) return false;
                 var match = String(t.date || t.joinDate || "").match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
                 var date = match ? new Date(Number(match[3]), Number(match[2]) - 1, Number(match[1])) : new Date(t.date || t.joinDate || "");
-                return !Number.isNaN(date.getTime()) && date.getFullYear() === year;
+                if(Number.isNaN(date.getTime()) || !dueThroughDate || date > dueThroughDate) return false;
+                if(weeklySaving) return date >= weeklyStartDate;
+                return date.getFullYear() === notificationYear;
             }).reduce(function(sum, t){
                 return sum + Number(t.amount || 0);
             }, 0);
@@ -2291,6 +2302,14 @@ loadMemberActiveLoan();
 }, 100);
 }
 /* ===================================================== TRANSACTIONS & MODULES ===================================================== */
+var selectedSavingsScheduleYear = new Date().getFullYear();
+
+function changeSavingsScheduleYear(delta){
+    selectedSavingsScheduleYear += Number(delta) || 0;
+    renderWeeklySavingsSchedule();
+    checkReminders();
+}
+
 function renderWeeklySavingsSchedule(){
     var box = document.getElementById("weeklySavingsSchedule");
     var memberSelect = document.getElementById("savMember");
@@ -2316,26 +2335,52 @@ function renderWeeklySavingsSchedule(){
         return;
     }
 
-    var year = new Date().getFullYear();
     var weekDay = settings.weekDay || "Sunday";
     var savingAmount = Number(settings.savingAmount || settings.customSavingAmount || 0);
     var weekDayNumber = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"].indexOf(weekDay);
     if(weekDayNumber < 0) weekDayNumber = 0;
 
-    var firstDate = new Date(year, 0, 1);
-    firstDate.setDate(firstDate.getDate() + (weekDayNumber - firstDate.getDay() + 7) % 7);
+    var scheduleYear = selectedSavingsScheduleYear;
     var now = new Date();
-    var elapsedWeeks = now < firstDate ? 0 : Math.min(52, Math.floor((now - firstDate) / (7 * 24 * 60 * 60 * 1000)) + 1);
-    var expectedSavings = elapsedWeeks * savingAmount;
-    var currentWeek = Math.max(0, Math.min(51, elapsedWeeks - 1));
-    var savings = db.transactions.filter(function(t){
-        return t.type === "Savings" && t.branch === member.branch &&
-            (t.member === member.memberId || t.member === member.name || t.memberId === member.memberId);
-    });
-    var totalSavings = savings.reduce(function(sum, t){
-        return sum + Number(t.amount || 0);
-    }, 0);
+    var weekLength = 7 * 24 * 60 * 60 * 1000;
+    var anchorDate = new Date(2020, 7, 30);
+    anchorDate.setDate(anchorDate.getDate() + (weekDayNumber - anchorDate.getDay() + 7) % 7);
+    var yearStart = new Date(scheduleYear, 0, 1);
+    var yearEnd = new Date(scheduleYear + 1, 0, 1);
+    var firstDate = new Date(anchorDate);
+    if(firstDate < yearStart){
+        firstDate.setDate(firstDate.getDate() + Math.ceil((yearStart - firstDate) / weekLength) * 7);
+    }
+    var scheduledWeeks = [];
+    for(var scheduledDate = new Date(firstDate); scheduledDate < yearEnd && scheduledWeeks.length < 52; scheduledDate.setDate(scheduledDate.getDate() + 7)){
+        scheduledWeeks.push(new Date(scheduledDate));
+    }
+    var weeksElapsed = scheduledWeeks.filter(function(date){ return date <= now; }).length;
+    var currentWeek = scheduleYear === now.getFullYear() ? weeksElapsed - 1 : -1;
+    var scheduleWeeks = scheduledWeeks.length;
+    var countedThroughYear = Math.min(scheduleYear, now.getFullYear());
+    var countThroughDate = scheduleYear < now.getFullYear()
+        ? new Date(scheduleYear, 11, 31)
+        : now;
+    var yearlyWeekCounts = {};
+    var allWeeksCount = 0;
 
+    // Count scheduled weekly periods per calendar year, then add them through the selected year.
+    if(countedThroughYear >= 2020 && countThroughDate >= anchorDate){
+        for(var countDate = new Date(anchorDate); countDate <= countThroughDate; countDate.setDate(countDate.getDate() + 7)){
+            var countDateYear = countDate.getFullYear();
+            yearlyWeekCounts[countDateYear] = (yearlyWeekCounts[countDateYear] || 0) + 1;
+        }
+        for(var countYear = 2020; countYear <= countedThroughYear; countYear++){
+            allWeeksCount += yearlyWeekCounts[countYear] || 0;
+        }
+    }
+    var totalExpectedSavings = allWeeksCount * savingAmount;
+    /*
+        ? Math.floor((scheduledWeeks[scheduleWeeks.length - 1] - anchorDate) / weekLength) + 1
+        : 0;
+
+    */
     function transactionDate(value){
         var text = String(value || "");
         var match = text.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
@@ -2344,26 +2389,44 @@ function renderWeeklySavingsSchedule(){
         return Number.isNaN(parsed.getTime()) ? null : parsed;
     }
 
-    var paidByWeek = Array(52).fill(0);
+    var savings = db.transactions.filter(function(t){
+        var date = transactionDate(t.date || t.joinDate);
+        return t.type === "Savings" && t.branch === member.branch && date &&
+            date >= yearStart && date < yearEnd &&
+            (t.member === member.memberId || t.member === member.name || t.memberId === member.memberId);
+    });
+    var totalSavings = savings.reduce(function(sum, t){
+        return sum + Number(t.amount || 0);
+    }, 0);
+
+    var paidByWeek = Array(scheduleWeeks).fill(0);
     savings.forEach(function(t){
         var paidDate = transactionDate(t.date || t.joinDate);
-        if(!paidDate || paidDate.getFullYear() !== year || paidDate > now) return;
-        var weekIndex = Math.floor((paidDate - firstDate) / (7 * 24 * 60 * 60 * 1000));
-        if(weekIndex >= 0 && weekIndex < 52){
+        if(!paidDate || paidDate < firstDate || paidDate > now || scheduleWeeks === 0) return;
+        var weekIndex = Math.floor((paidDate - firstDate) / weekLength);
+        if(weekIndex >= 0 && weekIndex < scheduleWeeks){
             paidByWeek[weekIndex] += Number(t.amount || 0);
         }
     });
 
-    var depositedThisYear = paidByWeek.reduce(function(sum, amount){
-        return sum + amount;
+    var cumulativeSavings = db.transactions.filter(function(t){
+        var date = transactionDate(t.date || t.joinDate);
+        return t.type === "Savings" && t.branch === member.branch && date &&
+            date >= anchorDate && date <= countThroughDate &&
+            (t.member === member.memberId || t.member === member.name || t.memberId === member.memberId);
+    }).reduce(function(sum, t){
+        return sum + Number(t.amount || 0);
     }, 0);
-    var pendingSavings = Math.max(0, expectedSavings - depositedThisYear);
-    var missedWeeks = 0;
-    var missedAmount = 0;
+    var cumulativeExpectedSavings = allWeeksCount * savingAmount;
+    var savingsTillCurrentWeek = savings.reduce(function(sum, transaction){
+        var date = transactionDate(transaction.date || transaction.joinDate);
+        return date && date <= now ? sum + Number(transaction.amount || 0) : sum;
+    }, 0);
+    var savingsDueTillCurrentWeek = Math.max(0, cumulativeExpectedSavings - cumulativeSavings);
     var rows = [];
-    for(var week = 0; week < 52; week++){
-        var scheduledDate = new Date(firstDate);
-        scheduledDate.setDate(firstDate.getDate() + week * 7);
+    for(var week = 0; week < scheduleWeeks; week++){
+        var scheduledDate = scheduledWeeks[week];
+        var cumulativeWeekNumber = week + 1;
         var nextDate = new Date(scheduledDate);
         nextDate.setDate(scheduledDate.getDate() + 7);
         var paidAmount = paidByWeek[week] || 0;
@@ -2371,19 +2434,16 @@ function renderWeeklySavingsSchedule(){
         var fullyPaid = savingAmount > 0 && paidAmount >= savingAmount;
         var status = fullyPaid ? "Deposited" : (now >= nextDate ? "Missed" : "Pending");
         var statusClass = status.toLowerCase();
-        if(status === "Missed"){
-            missedWeeks++;
-            missedAmount += remainingAmount;
-        }
         var amountToShow = paidAmount > 0 && !fullyPaid
             ? "₹" + paidAmount.toLocaleString("en-IN") + " deposited / ₹" + remainingAmount.toLocaleString("en-IN") + " due"
             : "₹" + (fullyPaid ? paidAmount : savingAmount).toLocaleString("en-IN");
-        rows.push("<tr" + (week === currentWeek ? ' style="background:#f0fff6;font-weight:bold;"' : "") + "><td>" + (week + 1) + "</td><td>" + weekDay + "</td><td>" + scheduledDate.toLocaleDateString("en-IN") + "</td><td>" + amountToShow + "</td><td class=\"savings-status " + statusClass + "\">" + status + "</td></tr>");
+        rows.push("<tr" + (week === currentWeek ? ' style="background:#f0fff6;font-weight:bold;"' : "") + "><td>" + cumulativeWeekNumber + "</td><td>" + weekDay + "</td><td>" + scheduledDate.toLocaleDateString("en-IN") + "</td><td>" + amountToShow + "</td><td class=\"savings-status " + statusClass + "\">" + status + "</td></tr>");
     }
 
-    box.innerHTML = "<h4 style=\"margin:0 0 4px;color:#087a32;\">Weekly Savings — " + year + " (52 weeks)</h4>" +
-        "<div style=\"margin-bottom:8px;font-size:13px;color:#555;\">Total Savings: <b style=\"color:#198754;\">₹" + totalSavings.toLocaleString("en-IN") + "</b> | Pending Savings: <b style=\"color:#dc3545;\">₹" + pendingSavings.toLocaleString("en-IN") + "</b><br>Expected till date: <b style=\"color:#198754;\">₹" + expectedSavings.toLocaleString("en-IN") + "</b> (" + elapsedWeeks + " weeks × ₹" + savingAmount.toLocaleString("en-IN") + ") | Missed: <b style=\"color:#dc3545;\">" + missedWeeks + " weeks / ₹" + missedAmount.toLocaleString("en-IN") + "</b></div>" +
-        "<div id=\"weeklySavingsScheduleScroll\" style=\"max-height:150px;overflow-y:auto;\"><table><thead><tr><th>Week</th><th>Day</th><th>Date</th><th>Savings</th><th>Status</th></tr></thead><tbody>" + rows.join("") + "</tbody></table></div>";
+    box.innerHTML = "<div style=\"margin-bottom:8px;padding:8px;text-align:center;background:#f0fff6;border-radius:8px;color:#087a32;font-weight:bold;\">All Weeks since 30-08-2020: " + allWeeksCount + "</div>" +
+        "<div style=\"display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;\"><button type=\"button\" onclick=\"changeSavingsScheduleYear(-1)\" style=\"padding:7px 12px;background:#e1f3e6;color:#087a32;\">‹ Previous</button><h4 style=\"margin:0;color:#087a32;text-align:center;\">Weekly Savings — " + scheduleYear + " (" + scheduleWeeks + " weeks)</h4><button type=\"button\" onclick=\"changeSavingsScheduleYear(1)\" style=\"padding:7px 12px;background:#e1f3e6;color:#087a32;\">Next ›</button></div>" +
+        "<div style=\"display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;padding:10px;font-size:13px;color:#555;background:#f8f9fa;border-radius:8px;\"><div>Current week: <b>" + weeksElapsed + "</b></div><div>Total Weeks: <b>" + allWeeksCount + "</b></div><div>Current Saving: <b style=\"color:#198754;\">₹" + savingsTillCurrentWeek.toLocaleString("en-IN") + "</b></div><div>Total Savings: <b style=\"color:#198754;\">₹" + cumulativeSavings.toLocaleString("en-IN") + "</b></div><div>Due Savings: <b style=\"color:#dc3545;\">₹" + savingsDueTillCurrentWeek.toLocaleString("en-IN") + "</b></div></div>" +
+        "<div id=\"weeklySavingsScheduleScroll\" style=\"max-height:150px;overflow-y:auto;\"><table><thead><tr><th>Sl No.</th><th>Day</th><th>Date</th><th>Savings</th><th>Status</th></tr></thead><tbody>" + rows.join("") + "</tbody></table></div>";
     var scrollBox = document.getElementById("weeklySavingsScheduleScroll");
     var currentRow = scrollBox && scrollBox.querySelectorAll("tbody tr")[currentWeek];
     if(scrollBox && currentRow){
