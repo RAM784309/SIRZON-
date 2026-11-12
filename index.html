@@ -3240,14 +3240,23 @@ itemEl.innerHTML = `
 <div><b>${t.type}</b>${detailsHtml}<br><small style="color:#777;">${t.date}</small></div>
 <div style="text-align:right;"><b style="color:${amountColor};font-size:17px;">${sign}₹${Number(t.amount || 0).toLocaleString("en-IN")}</b></div>
 `;
-setupLongPress(itemEl, function(){
+setupLongPress(itemEl, async function(){
 if(confirm("Do you want to delete this transaction (" + t.type + " - ₹" + t.amount + ")?")){
+var previousTransactions = db.transactions;
+var previousLoans = db.loans;
 db.transactions = db.transactions.filter(function(item){ return (item.id !== t.id); });
 if(t.type === "New Loan"){
 db.loans = db.loans.filter(function(l){ return (l.id !== t.id); });
 }
-saveDB();
+try{
+await saveDB();
 refreshAll();
+}catch(error){
+db.transactions = previousTransactions;
+db.loans = previousLoans;
+refreshAll();
+alert("Transaction delete save nahi hua: " + (error.message || error));
+}
 }
 });
 box.appendChild(itemEl);
