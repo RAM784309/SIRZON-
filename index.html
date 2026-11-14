@@ -114,10 +114,6 @@ button{ border:0; border-radius:10px; padding:13px 18px; cursor:pointer; }
 #loanPageMember .card{
     width:100%;
     box-sizing:border-box;
-}
-#loanPageMember .card{
-    width:100%;
-    box-sizing:border-box;
     text-align:center;
 }
 #loanPageMember .card .card-title,
@@ -309,8 +305,9 @@ button{ border:0; border-radius:10px; padding:13px 18px; cursor:pointer; }
 <option value="Months">Months</option>
 </select>
 <label>Duration Value</label>
-<input id="loanDurationVal" type="number" placeholder="Enter duration value" oninput="calculateLoanEmiPreview()">
+<input id="loanDurationVal" type="number" min="1" max="600" step="1" placeholder="Enter duration value" oninput="calculateLoanEmiPreview()">
 <p style="margin:10px 0;font-weight:bold;color:#198754;" id="loanEmiPreviewBox"> Total Payable: ₹0 | Installment: ₹0 </p>
+<div id="loanSchedulePreview" class="savings-schedule"></div>
 <button class="login-btn" onclick="addNewLoanTrans()"> Submit Loan </button>
 </div>
 <!-- EMI FORM -->
@@ -767,34 +764,6 @@ reader.readAsText(file);
 event.target.value = "";
 }
 /* ===================================================== REGISTER / LOGIN ===================================================== */
-function register(){
-var name = document.getElementById("regName").value.trim();
-var username = document.getElementById("regUser").value.trim();
-var password = document.getElementById("regPass").value;
-if(!name || !username || !password){
-alert( "Please fill all fields" );
-return;
-}
-var exists = db.users.some( function(u){ return u.username === username; } );
-if(exists){
-alert( "Username already exists" );
-return;
-}
-db.users.push({
-id:Date.now(),
-name:name,
-username:username,
-password:password,
-role:"PENDING",
-joinDate: formatDateDDMMYYYY()
-});
-saveDB();
-alert( "Account created successfully.\nRole will be assigned by Admin." );
-document.getElementById("regName").value = "";
-document.getElementById("regUser").value = "";
-document.getElementById("regPass").value = "";
-showLogin();
-}
 async function register() {
 
     const branchName = document.getElementById("branchName").value.trim();
@@ -1258,6 +1227,81 @@ function getLoanInterestRate(durationType){
     return Number.isFinite(rate) && rate >= 0 ? rate : 0;
 }
 
+function formatLoanDateKey(date){
+    return date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0") + "-" + String(date.getDate()).padStart(2, "0");
+}
+
+function createLoanDueDates(startDate, durationType, count){
+    var dates = [];
+    var settings = window.sirzonSettings || {};
+    var periods = Math.max(0, Math.floor(Number(count) || 0));
+    var start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
+    if(Number.isNaN(start.getTime())) return dates;
+
+    if(durationType === "Weeks"){
+        var weekdays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+        var targetDay = weekdays.indexOf(settings.weekDay || "Sunday");
+        if(targetDay < 0) targetDay = 0;
+        var daysToNext = (targetDay - start.getDay() + 7) % 7 || 7;
+        start.setDate(start.getDate() + daysToNext);
+        for(var week = 0; week < periods; week++){
+            var weeklyDate = new Date(start);
+            weeklyDate.setDate(start.getDate() + week * 7);
+            dates.push(formatLoanDateKey(weeklyDate));
+        }
+    } else {
+        var originalDay = start.getDate();
+        for(var month = 1; month <= periods; month++){
+            var monthlyDate = new Date(start.getFullYear(), start.getMonth() + month, 1);
+            var finalDay = new Date(monthlyDate.getFullYear(), monthlyDate.getMonth() + 1, 0).getDate();
+            monthlyDate.setDate(Math.min(originalDay, finalDay));
+            dates.push(formatLoanDateKey(monthlyDate));
+        }
+    }
+    return dates;
+}
+
+function formatLoanDueDate(dateValue, durationType){
+    var parts = String(dateValue || "").split("-");
+    if(parts.length !== 3) return dateValue || "";
+    var date = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    if(durationType === "Months"){
+        return date.toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+    }
+    return date.toLocaleDateString("en-IN");
+}
+
+function getLoanScheduleDates(loan){
+    if(Array.isArray(loan.dueDates) && loan.dueDates.length) return loan.dueDates;
+    var durationParts = String(loan.duration || "").match(/^(\d+)\s+(Weeks|Months)$/i);
+    if(!durationParts) return [];
+    var dateParts = String(loan.date || loan.joinDate || "").match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
+    var startDate = dateParts
+        ? new Date(Number(dateParts[3]), Number(dateParts[2]) - 1, Number(dateParts[1]))
+        : new Date();
+    return createLoanDueDates(startDate, durationParts[2] === "Months" ? "Months" : "Weeks", Number(durationParts[1]));
+}
+
+function updateLoanSchedulePreview(){
+    var box = document.getElementById("loanSchedulePreview");
+    if(!box) return;
+    var count = Number(document.getElementById("loanDurationVal").value) || 0;
+    var type = document.getElementById("loanDurationType").value;
+    if(count <= 0){
+        box.innerHTML = "";
+        return;
+    }
+    var dates = createLoanDueDates(new Date(), type, count);
+    var scheduleLabel = type === "Weeks"
+        ? "Installment due dates (" + ((window.sirzonSettings || {}).weekDay || "Sunday") + ")"
+        : "Monthly installment due dates";
+    box.innerHTML = "<b style=\"display:block;margin-bottom:6px;color:#087a32;\">" + scheduleLabel + "</b>" +
+        dates.map(function(date, index){
+            return "<div style=\"padding:5px 2px;border-bottom:1px solid #eee;\">" + (index + 1) + ". " + formatLoanDueDate(date, type) + "</div>";
+        }).join("");
+}
+
 function calculateLoanEmiPreview(){
 
     var amt =
@@ -1279,7 +1323,7 @@ function calculateLoanEmiPreview(){
 
         document.getElementById("loanEmiPreviewBox").innerText =
             "Enter loan amount";
-
+        updateLoanSchedulePreview();
         return;
     }
 
@@ -1305,6 +1349,7 @@ function calculateLoanEmiPreview(){
         firstInstallment.toLocaleString("en-IN") +
 
         " | Interest is calculated on remaining principal";
+    updateLoanSchedulePreview();
 }
 
 
@@ -1524,7 +1569,10 @@ function addNewLoanTrans(){
         !branch ||
         !member ||
         amount <= 0 ||
-        !durationVal
+        !durationVal ||
+        !Number.isInteger(Number(durationVal)) ||
+        Number(durationVal) <= 0 ||
+        Number(durationVal) > 600
     ){
 
         alert(
@@ -1650,6 +1698,8 @@ function addNewLoanTrans(){
 
     var durationStr =
         durationVal + " " + durationType;
+    var loanStartDate = new Date();
+    var dueDates = createLoanDueDates(loanStartDate, durationType, durationVal);
 
     var loanId =
         Date.now();
@@ -1683,6 +1733,8 @@ function addNewLoanTrans(){
         amount: amount,
         interestRate: rate,
         duration: durationStr,
+        durationType: durationType,
+        dueDates: dueDates,
         status: "Active",
         date: formatDateTime(),
         joinDate: formatDateDDMMYYYY()
@@ -2066,7 +2118,8 @@ function checkReminders(){
                 return sum + Number(t.amount || 0);
             }, 0);
         installmentAmount = Math.max(0, installmentAmount - paidThisMonth);
-        if(installmentAmount <= 0) return;
+        var isWeeklyLoanReminder = String(l.durationType || l.duration || "").toLowerCase().indexOf("week") !== -1;
+        if(installmentAmount <= 0 && !isWeeklyLoanReminder) return;
         var dueLabel = new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" }) + " Loan Installment";
 
         var escapedBranch = String(l.branch || "")
@@ -2086,6 +2139,68 @@ function checkReminders(){
         var safeReminderMemberName = String(reminderMemberLabel).replace(/[&<>"']/g, function(character){
             return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[character];
         });
+        var loanDurationParts = String(l.duration || "").match(/^(\\d+)\\s+(Weeks|Months)$/i);
+        var loanIsWeekly = (l.durationType || (loanDurationParts && loanDurationParts[2]) || "").toLowerCase() === "weeks";
+        if(loanIsWeekly){
+            var weeklyDueDates = getLoanScheduleDates(l);
+            var weeklyToday = new Date();
+            weeklyToday.setHours(0, 0, 0, 0);
+            var weeklyPayments = db.transactions.filter(function(t){
+                return t.type === "EMI Collect" && t.loanId === l.id;
+            }).slice().sort(function(a, b){
+                return Number(a.timestamp || a.id || 0) - Number(b.timestamp || b.id || 0);
+            });
+            var weeklyPrincipalPerInstallment = loanDurationParts
+                ? Math.ceil(Number(l.amount || 0) / Number(loanDurationParts[1]))
+                : 0;
+            var weeklyPrincipalPaid = 0;
+            var weeklyReminderBranch = String(l.branch || "")
+                .replace(/\\/g, "\\\\")
+                .replace(/'/g, "\\'");
+            var weeklyReminderMember = String(l.member || "")
+                .replace(/\\/g, "\\\\")
+                .replace(/'/g, "\\'");
+
+            for(var dueIndex = 0; dueIndex < weeklyDueDates.length; dueIndex++){
+                var dueParts = String(weeklyDueDates[dueIndex]).split("-");
+                var scheduledDueDate = new Date(Number(dueParts[0]), Number(dueParts[1]) - 1, Number(dueParts[2]));
+                scheduledDueDate.setHours(0, 0, 0, 0);
+                if(scheduledDueDate > weeklyToday) break;
+
+                var duePayment = weeklyPayments[dueIndex];
+                if(duePayment){
+                    weeklyPrincipalPaid += Number(duePayment.principal || 0);
+                    continue;
+                }
+
+                var duePrincipal = Math.min(
+                    weeklyPrincipalPerInstallment,
+                    Math.max(0, Number(l.amount || 0) - weeklyPrincipalPaid)
+                );
+                if(duePrincipal <= 0) continue;
+                var dueOutstanding = Math.max(0, Number(l.amount || 0) - weeklyPrincipalPaid);
+                var dueInterest = Math.round(dueOutstanding * (Number(l.interestRate || 0) / 100));
+                var weeklyInstallmentAmount = duePrincipal + dueInterest;
+                var weeklyDueLabel = formatLoanDueDate(weeklyDueDates[dueIndex], "Weeks");
+                var weeklyDepositButton = canRecordDeposit
+                    ? `<button style="flex:1;margin-top:6px;background:#198754;color:white;padding:8px;font-size:13px;border-radius:6px;font-weight:bold;" onclick="payFromNotification('${weeklyReminderBranch}', '${weeklyReminderMember}')">Deposit</button>`
+                    : "";
+                var weeklyQrButton = `<button style="flex:1;margin-top:6px;background:#0d6efd;color:white;padding:8px;font-size:13px;border-radius:6px;font-weight:bold;" onclick="payMemberDuesViaUpi(${weeklyInstallmentAmount}, 'Weekly loan installment')">Pay by QR</button>`;
+
+                reminders.push(`<div style="padding:12px 0;border-bottom:1px solid #eee;">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                    <div><b>${safeReminderMemberName}</b><br><small style="color:#777;">Branch: ${l.branch}</small></div>
+                    <div style="text-align:right;">
+                      <span style="color:#dc3545;font-weight:bold;">Weekly Loan Installment — ${weeklyDueLabel}: ₹${weeklyInstallmentAmount.toLocaleString("en-IN")}</span><br>
+                      <small style="color:#555;">Principal: ₹${duePrincipal.toLocaleString("en-IN")} | Interest: ₹${dueInterest.toLocaleString("en-IN")}</small><br>
+                      <small style="color:#555;">Outstanding: ₹${dueOutstanding.toLocaleString("en-IN")}</small>
+                    </div>
+                  </div>
+                  <div style="display:flex;gap:8px;">${weeklyDepositButton}${weeklyQrButton}</div>
+                </div>`);
+            }
+            return;
+        }
         var escapedMember = String(l.member || "")
             .replace(/\\/g, "\\\\")
             .replace(/'/g, "\\'");
@@ -2986,12 +3101,48 @@ function renderMemberLoans(){
 var box = document.getElementById("memberLoanList");
 if(!box) return;
 box.innerHTML = "";
-var myLoans = db.loans.filter(function(l){
-return l.member === currentUser.name ||
-       l.member === currentUser.memberId ||
-       l.member === currentUser.code ||
-       l.member === currentUser.username;
-}).slice().reverse();
+var memberRecord = db.members.find(function(m){
+return m.memberId === currentUser.memberId ||
+       m.memberId === currentUser.code ||
+       m.memberId === currentUser.username ||
+       m.name === currentUser.name;
+});
+var memberKeys = [
+    currentUser.name,
+    currentUser.memberId,
+    currentUser.code,
+    currentUser.username,
+    memberRecord && memberRecord.memberId,
+    memberRecord && memberRecord.name
+].filter(Boolean).map(String);
+var myLoans = db.loans.filter(function(loan){
+return memberKeys.indexOf(String(loan.member || loan.memberId || loan.memberCode || "")) !== -1;
+});
+
+// Also show loan entries whose transaction was saved even if its loan record is missing.
+db.transactions.filter(function(transaction){
+return transaction.type === "New Loan" &&
+       memberKeys.indexOf(String(transaction.member || transaction.memberId || "")) !== -1 &&
+       !myLoans.some(function(loan){ return String(loan.id) === String(transaction.loanId || transaction.id); });
+}).forEach(function(transaction){
+var loanId = transaction.loanId || transaction.id;
+var paidPrincipal = db.transactions.filter(function(payment){
+return payment.type === "EMI Collect" && String(payment.loanId) === String(loanId);
+}).reduce(function(total, payment){ return total + Number(payment.principal || 0); }, 0);
+var loanAmount = Number(transaction.amount || 0);
+myLoans.push({
+    id: loanId,
+    member: transaction.member || transaction.memberId,
+    branch: transaction.branch,
+    amount: loanAmount,
+    interestRate: Number(transaction.interestRate || 0),
+    duration: transaction.duration || "",
+    dueDates: transaction.dueDates || [],
+    date: transaction.date || transaction.joinDate || "",
+    status: paidPrincipal >= loanAmount ? "Closed" : "Active"
+});
+});
+myLoans.reverse();
 if(myLoans.length === 0){
 box.innerHTML = '<div class="empty">No loans found</div>';
 return;
@@ -3001,14 +3152,66 @@ var paidPrincipal = db.transactions.filter(function(t){
 return t.type === "EMI Collect" && t.loanId === l.id;
 }).reduce(function(s, t){ return s + Number(t.principal || 0); }, 0);
 var remainingPrincipal = Math.max(0, Number(l.amount || 0) - paidPrincipal);
+var dueDates = getLoanScheduleDates(l);
+var durationParts = String(l.duration || "").match(/^(\d+)\s+(Weeks|Months)$/i);
+var installmentCount = durationParts ? Number(durationParts[1]) : dueDates.length;
+var principalPerInstallment = installmentCount > 0
+    ? Math.ceil(Number(l.amount || 0) / installmentCount)
+    : 0;
+var emiPayments = db.transactions.filter(function(t){
+    return t.type === "EMI Collect" && t.loanId === l.id;
+}).slice().sort(function(a, b){
+    return Number(a.timestamp || a.id || 0) - Number(b.timestamp || b.id || 0);
+});
+var scheduledPrincipalBalance = Number(l.amount || 0);
+var scheduleHtml = dueDates.length
+    ? '<div style="margin-top:8px;padding-top:8px;border-top:1px solid #eee;"><b>Installment schedule:</b><div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;margin-top:6px;font-size:12px;text-align:left;"><thead><tr style="background:#e1f3e6;color:#087a32;"><th style="padding:7px 5px;">Date</th><th style="padding:7px 5px;">Outstanding</th><th style="padding:7px 5px;">Interest</th><th style="padding:7px 5px;">Amount</th><th style="padding:7px 5px;">Status</th></tr></thead><tbody>' +
+        dueDates.map(function(date, index){
+            var principalAmount = Math.min(principalPerInstallment, scheduledPrincipalBalance);
+            var interestAmount = Math.round(scheduledPrincipalBalance * (Number(l.interestRate || 0) / 100));
+            var payment = emiPayments[index];
+            var displayPrincipal = payment ? Number(payment.principal || 0) : principalAmount;
+            var displayInterest = payment ? Number(payment.interest || 0) : interestAmount;
+            var displayAmount = payment
+                ? Number(payment.amount || (displayPrincipal + displayInterest))
+                : displayPrincipal + displayInterest;
+            var status = payment ? "Paid" : "Due";
+            var statusColor = payment ? "#198754" : "#dc3545";
+            scheduledPrincipalBalance = Math.max(0, scheduledPrincipalBalance - principalAmount);
+            return '<tr style="border-bottom:1px solid #eee;"><td style="padding:7px 5px;white-space:nowrap;">' + formatLoanDueDate(date, durationParts && durationParts[2] === "Months" ? "Months" : "Weeks") +
+                '</td><td style="padding:7px 5px;white-space:nowrap;">₹' + displayPrincipal.toLocaleString("en-IN") +
+                '</td><td style="padding:7px 5px;white-space:nowrap;">₹' + displayInterest.toLocaleString("en-IN") +
+                '</td><td style="padding:7px 5px;white-space:nowrap;">₹' + displayAmount.toLocaleString("en-IN") +
+                '</td><td style="padding:7px 5px;"><b style="color:' + statusColor + ';">' + status + '</b></td></tr>';
+        }).join("") + '</tbody></table></div></div>'
+    : "";
 var div = document.createElement("div");
 div.className = "item";
-div.innerHTML = `
-<div><b>Loan Amount: ₹${Number(l.amount || 0).toLocaleString("en-IN")}</b><br>
-<small>Total Payable: ₹${Number(l.totalPayable || 0).toLocaleString("en-IN")} | Remaining: ₹${remainingPrincipal.toLocaleString("en-IN")}</small><br>
-<small>Status: <b style="color:${l.status === 'Active' ? '#198754' : '#777'}">${l.status}</b> | Duration: ${l.duration}</small><br>
-<small style="color:#777;">Date: ${l.date}</small></div>
-`;
+div.style.display = "block";
+var loanToggle = document.createElement("button");
+loanToggle.type = "button";
+loanToggle.setAttribute("aria-expanded", "false");
+loanToggle.style.cssText = "width:100%;padding:0;background:transparent;text-align:left;color:inherit;";
+loanToggle.innerHTML = `
+<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+  <div>
+    <b>Loan Amount: ₹${Number(l.amount || 0).toLocaleString("en-IN")}</b><br>
+    <small>Total Payable: ₹${Number(l.totalPayable || 0).toLocaleString("en-IN")} | Remaining: ₹${remainingPrincipal.toLocaleString("en-IN")}</small><br>
+    <small>Status: <b style="color:${l.status === 'Active' ? '#198754' : '#777'}">${l.status}</b> | Duration: ${l.duration}</small><br>
+    <small style="color:#777;">Date: ${l.date}</small>
+  </div>
+  <span aria-hidden="true" style="color:#198754;font-size:20px;">⌄</span>
+</div>`;
+var scheduleDetails = document.createElement("div");
+scheduleDetails.style.display = "none";
+scheduleDetails.innerHTML = scheduleHtml;
+loanToggle.addEventListener("click", function(){
+    var isExpanded = loanToggle.getAttribute("aria-expanded") === "true";
+    loanToggle.setAttribute("aria-expanded", String(!isExpanded));
+    scheduleDetails.style.display = isExpanded ? "none" : "block";
+});
+div.appendChild(loanToggle);
+div.appendChild(scheduleDetails);
 box.appendChild(div);
 });
 }
