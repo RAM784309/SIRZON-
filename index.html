@@ -2278,7 +2278,7 @@ function checkReminders(){
             } else {
                 var weekDayNumber = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"].indexOf(settings.weekDay || "Sunday");
                 if(weekDayNumber < 0) weekDayNumber = 0;
-                weeklyStartDate = new Date(2020, 7, 30);
+                weeklyStartDate = new Date(2020, 8, 6);
                 weeklyStartDate.setDate(weeklyStartDate.getDate() + (weekDayNumber - weeklyStartDate.getDay() + 7) % 7);
                 for(var dueDate = new Date(weeklyStartDate); dueDate <= dueThroughDate; dueDate.setDate(dueDate.getDate() + 7)){
                     expectedPeriods++;
@@ -2458,7 +2458,7 @@ function renderWeeklySavingsSchedule(){
     var scheduleYear = selectedSavingsScheduleYear;
     var now = new Date();
     var weekLength = 7 * 24 * 60 * 60 * 1000;
-    var anchorDate = new Date(2020, 7, 30);
+    var anchorDate = new Date(2020, 8, 6);
     anchorDate.setDate(anchorDate.getDate() + (weekDayNumber - anchorDate.getDay() + 7) % 7);
     var yearStart = new Date(scheduleYear, 0, 1);
     var yearEnd = new Date(scheduleYear + 1, 0, 1);
@@ -2555,7 +2555,7 @@ function renderWeeklySavingsSchedule(){
         rows.push("<tr" + (week === currentWeek ? ' style="background:#f0fff6;font-weight:bold;"' : "") + "><td>" + cumulativeWeekNumber + "</td><td>" + weekDay + "</td><td>" + scheduledDate.toLocaleDateString("en-IN") + "</td><td>" + amountToShow + "</td><td class=\"savings-status " + statusClass + "\">" + status + "</td></tr>");
     }
 
-    box.innerHTML = "<div style=\"margin-bottom:8px;padding:8px;text-align:center;background:#f0fff6;border-radius:8px;color:#087a32;font-weight:bold;\">All Weeks since 30-08-2020: " + allWeeksCount + "</div>" +
+    box.innerHTML = "<div style=\"margin-bottom:8px;padding:8px;text-align:center;background:#f0fff6;border-radius:8px;color:#087a32;font-weight:bold;\">All Weeks since 06-09-2020: " + allWeeksCount + "</div>" +
         "<div style=\"display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;\"><button type=\"button\" onclick=\"changeSavingsScheduleYear(-1)\" style=\"padding:7px 12px;background:#e1f3e6;color:#087a32;\">‹ Previous</button><h4 style=\"margin:0;color:#087a32;text-align:center;\">Weekly Savings — " + scheduleYear + " (" + scheduleWeeks + " weeks)</h4><button type=\"button\" onclick=\"changeSavingsScheduleYear(1)\" style=\"padding:7px 12px;background:#e1f3e6;color:#087a32;\">Next ›</button></div>" +
         "<div style=\"display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;padding:10px;font-size:13px;color:#555;background:#f8f9fa;border-radius:8px;\"><div>Current week: <b>" + weeksElapsed + "</b></div><div>Total Weeks: <b>" + allWeeksCount + "</b></div><div>Current Saving: <b style=\"color:#198754;\">₹" + savingsTillCurrentWeek.toLocaleString("en-IN") + "</b></div><div>Total Savings: <b style=\"color:#198754;\">₹" + cumulativeSavings.toLocaleString("en-IN") + "</b></div><div>Due Savings: <b style=\"color:#dc3545;\">₹" + savingsDueTillCurrentWeek.toLocaleString("en-IN") + "</b></div></div>" +
         "<div id=\"weeklySavingsScheduleScroll\" style=\"max-height:150px;overflow-y:auto;\"><table><thead><tr><th>Sl No.</th><th>Day</th><th>Date</th><th>Savings</th><th>Status</th></tr></thead><tbody>" + rows.join("") + "</tbody></table></div>";
